@@ -8,13 +8,23 @@ from __future__ import annotations
 import os
 import tempfile
 
-os.environ.setdefault("AUTH_MODE", "dev")
-os.environ.setdefault("STORE_BACKEND", "memory")
-os.environ.setdefault("SCHEDULER_ENABLED", "false")
-os.environ.setdefault("LOG_LEVEL", "WARNING")
-os.environ.setdefault("EXECUTION_WORKERS", "2")
-os.environ.setdefault(
-    "MEMORY_STORE_PATH", os.path.join(tempfile.mkdtemp(prefix="buttlr-test-"), "store.json")
+# Pinned explicitly (not setdefault): a developer's own backend/.env must never change what the
+# suite exercises, and environment variables take precedence over the dotenv file.
+os.environ["AUTH_MODE"] = "dev"
+os.environ["STORE_BACKEND"] = "memory"
+os.environ["SCHEDULER_ENABLED"] = "false"
+os.environ["LOG_LEVEL"] = "WARNING"
+os.environ["EXECUTION_WORKERS"] = "2"
+os.environ["FIREBASE_PROJECT_ID"] = ""
+os.environ["FIREBASE_CREDENTIALS_JSON"] = ""
+os.environ["FIREBASE_CREDENTIALS_PATH"] = ""
+os.environ["FIRESTORE_EMULATOR_HOST"] = ""
+os.environ["GITHUB_OAUTH_CLIENT_ID"] = ""
+os.environ["GITHUB_OAUTH_CLIENT_SECRET"] = ""
+os.environ["GOOGLE_OAUTH_CLIENT_ID"] = ""
+os.environ["GOOGLE_OAUTH_CLIENT_SECRET"] = ""
+os.environ["MEMORY_STORE_PATH"] = os.path.join(
+    tempfile.mkdtemp(prefix="buttlr-test-"), "store.json"
 )
 
 from collections.abc import Iterator

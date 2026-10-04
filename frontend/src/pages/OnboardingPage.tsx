@@ -32,7 +32,7 @@ const STEPS = [
 ];
 
 export function OnboardingPage() {
-  const { organizations, setActiveOrganization } = useAuth();
+  const { organizations, setActiveOrganization, refresh } = useAuth();
   const createOrganization = useCreateOrganization();
   const seedDemo = useSeedDemo();
   const meta = useMeta();
@@ -59,6 +59,9 @@ export function OnboardingPage() {
         logo_emoji: emoji,
       });
       setActiveOrganization(organization.id);
+      // The shell renders from the session's organization list, so it has to be re-read —
+      // otherwise it still sees none and sends us straight back here.
+      await refresh();
       toast.success(`${organization.name} is ready.`);
       navigate("/", { replace: true });
     } catch (error) {
@@ -77,6 +80,7 @@ export function OnboardingPage() {
     try {
       const seeded = await seedDemo.mutateAsync({});
       setActiveOrganization(seeded.organization_id);
+      await refresh();
       toast.success("Demo workspace ready.");
       navigate("/", { replace: true });
     } catch (error) {

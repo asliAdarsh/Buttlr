@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { useMeta, useSeedDemo } from "@/lib/queries";
 
 /** Owner account created by the demo seed when no other address is supplied. */
-const DEMO_EMAIL = "owner@acme.test";
+const DEMO_EMAIL = "owner@acme.example.com";
 
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -24,19 +24,23 @@ function redirectTarget(state: unknown): string {
 }
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithPassword, loginWithGoogle, authMode, firebaseAvailable } = useAuth();
   const meta = useMeta();
   const seedDemo = useSeedDemo();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [creating, setCreating] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [githubToken, setGithubToken] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const devLoginEnabled = meta.data?.dev_login_enabled !== false;
+  const firebaseMode = authMode === "firebase";
   const from = redirectTarget(location.state);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -52,6 +56,45 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(messageFor(error, "We could not sign you in. Try again."));
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleFirebaseSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(null);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setFormError("Enter your email address.");
+      return;
+    }
+    if (password.length < 6) {
+      setFormError("Passwords are at least 6 characters.");
+      return;
+    }
+    setSigningIn(true);
+    try {
+      await loginWithPassword(trimmedEmail, password, {
+        create: creating,
+        displayName: displayName.trim() || undefined,
+      });
+      navigate(from, { replace: true });
+    } catch (error) {
+      setFormError(messageFor(error, "Sign-in failed. Please try again."));
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setFormError(null);
+    setSigningIn(true);
+    try {
+      await loginWithGoogle();
+      navigate(from, { replace: true });
+    } catch (error) {
+      setFormError(messageFor(error, "Google sign-in failed. Please try again."));
     } finally {
       setSigningIn(false);
     }
@@ -106,7 +149,11 @@ export function LoginPage() {
             </li>
           </ul>
         </div>
-        <p className="text-sm text-muted-foreground">No password. This deployment signs you in by email.</p>
+        <p className="text-sm text-muted-foreground">
+          {firebaseMode
+            ? "Sign in with your Buttlr account. Sessions are issued by Firebase Authentication."
+            : "No password. This deployment signs you in by email."}
+        </p>
       </section>
 
       <main className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:min-h-0">
@@ -124,7 +171,110 @@ export function LoginPage() {
             <p className="text-muted-foreground">An AI Workforce Operating System.</p>
           </div>
 
-          {devLoginEnabled ? (
+          {firebaseMode ? (
+            firebaseAvailable ? (
+              <form onSubmit={handleFirebaseSubmit} className="space-y-5" noValidate>
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold text-foreground">
+                    {creating ? "Create your account" : "Sign in"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {creating
+                      ? "Your account is created in Buttlr's Firebase project."
+                      : "Use the account your organization gave you."}
+                  </p>
+                </div>
+
+                {formError ? (
+                  <Alert tone="destructive" title="We couldn't sign you in">
+                    {formError}
+                  </Alert>
+                ) : null}
+
+                <Field label="Email" htmlFor="login-email" required>
+                  <Input
+                    id="login-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                </Field>
+
+                <Field label="Password" htmlFor="login-password" required>
+                  <Input
+                    id="login-password"
+                    name="password"
+                    type="password"
+                    autoComplete={creating ? "new-password" : "current-password"}
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                </Field>
+
+                {creating ? (
+                  <Field
+                    label="Display name"
+                    htmlFor="login-display-name"
+                    hint="Optional. How your name appears in the activity log."
+                  >
+                    <Input
+                      id="login-display-name"
+                      name="display_name"
+                      autoComplete="name"
+                      placeholder="Ada Lovelace"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                    />
+                  </Field>
+                ) : null}
+
+                <Button type="submit" className="w-full" loading={signingIn}>
+                  {creating ? "Create account" : "Sign in"}
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => void handleGoogle()}
+                  disabled={signingIn}
+                >
+                  Continue with Google
+                </Button>
+
+                <p className="text-center text-sm text-muted-foreground">
+                  {creating ? "Already have an account?" : "New to Buttlr?"}{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={() => {
+                      setCreating((value) => !value);
+                      setFormError(null);
+                    }}
+                  >
+                    {creating ? "Sign in" : "Create an account"}
+                  </button>
+                </p>
+              </form>
+            ) : (
+              <Alert
+                tone="warning"
+                title="This deployment signs in with Firebase"
+                icon={<KeyRound className="h-4 w-4" aria-hidden />}
+              >
+                This build has no Firebase configuration, so sign-in is unavailable. Set the
+                VITE_FIREBASE_* variables (see frontend/.env.example) and reload.
+              </Alert>
+            )
+          ) : devLoginEnabled ? (
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               <div className="space-y-1">
                 <h2 className="text-xl font-semibold text-foreground">Sign in</h2>

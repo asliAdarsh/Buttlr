@@ -217,7 +217,12 @@ class FirestoreStore(Store):
             await asyncio.to_thread(lambda: list(client.collections()))
             return True
         except Exception as exc:
-            logger.warning("firestore health check failed: %s", exc)
+            logger.error(
+                "Firestore is not reachable (%s). Check that the Firestore database exists in "
+                "project %s and that this service has credentials for it.",
+                exc,
+                self._settings.firebase_project_id or "default",
+            )
             return False
 
     async def close(self) -> None:

@@ -10,6 +10,7 @@ Both satisfy ``TokenVerifier``, so nothing downstream knows the difference.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -17,7 +18,7 @@ from typing import Any, Protocol
 import jwt
 
 from app.core.config import Settings
-from app.core.errors import UnauthenticatedError
+from app.core.errors import ButtlrError, UnauthenticatedError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -94,27 +95,55 @@ class FirebaseTokenVerifier:
         import firebase_admin
         from firebase_admin import credentials
 
+        project_id = self._settings.firebase_project_id
+        if not project_id:
+            raise ButtlrError(
+                "AUTH_MODE=firebase needs FIREBASE_PROJECT_ID so ID tokens can be checked.",
+                code="firebase_misconfigured",
+                status_code=500,
+            )
+
         if not firebase_admin._apps:
+            options: dict[str, str] = {"projectId": project_id}
             if self._settings.firebase_credentials_json:
                 import json
 
-                cred = credentials.Certificate(json.loads(self._settings.firebase_credentials_json))
+                cred: credentials.Base | None = credentials.Certificate(
+                    json.loads(self._settings.firebase_credentials_json)
+                )
             elif self._settings.firebase_credentials_path:
                 cred = credentials.Certificate(self._settings.firebase_credentials_path)
             else:
-                cred = credentials.ApplicationDefault()
-            options = {}
-            if self._settings.firebase_project_id:
-                options["projectId"] = self._settings.firebase_project_id
-            firebase_admin.initialize_app(cred, options or None)
+                # ID tokens are verified against Google's public certificates when
+                # ``check_revoked=False``, so sign-in works with the project id alone. Anything
+                # that calls the Admin API — revocation checks, Firestore, Storage — needs a
+                # service account, and says so when it is missing.
+                cred = None
+                logger.warning(
+                    "no Firebase service account configured: ID tokens will be verified, but "
+                    "Firestore and Admin API calls need FIREBASE_CREDENTIALS_JSON or "
+                    "FIREBASE_CREDENTIALS_PATH"
+                )
+            if cred is not None:
+                firebase_admin.initialize_app(cred, options)
+            else:
+                firebase_admin.initialize_app(options=options)
         self._initialised = True
 
     async def verify(self, token: str) -> VerifiedIdentity:
         from firebase_admin import auth as fb_auth
 
         self._ensure_initialised()
+        # Revocation ("this account was deleted or signed out everywhere") is only visible to
+        # the Admin API, which needs a service account. Without one we verify the signature,
+        # issuer, audience and expiry against Google's public certificates, and say so.
+        check_revoked = bool(
+            self._settings.firebase_credentials_json or self._settings.firebase_credentials_path
+        )
         try:
-            decoded = fb_auth.verify_id_token(token, check_revoked=False)
+            decoded = await asyncio.to_thread(
+                fb_auth.verify_id_token, token, check_revoked=check_revoked
+            )
         except Exception as exc:
             logger.warning("firebase token rejected: %s", exc)
             raise UnauthenticatedError("Your session expired. Sign in again.") from exc
