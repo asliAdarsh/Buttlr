@@ -1,0 +1,149 @@
+# Buttlr
+
+**An AI Workforce Operating System.**
+
+Buttlr lets an organization create AI employees — called **Buttlrs** — by describing them in
+natural language, giving them scoped access to real tools (GitHub, Jira, Gmail, Drive, Sheets),
+deciding what they are allowed to do on their own, and supervising the rest through human approval.
+
+> Describe → Configure → Permission → Deploy → Execute → Approve → Log
+
+---
+
+## Why it is not another workflow builder
+
+You do not drag nodes. You write:
+
+> "Monitor our selected GitHub repositories every morning. Analyze new pull requests for bugs,
+> security issues, missing tests and unresolved review comments. Summarize the important findings.
+> If a critical issue is found, prepare a Jira ticket and ask the Engineering Lead for approval
+> before creating it."
+
+Buttlr turns that into a reviewable configuration — scope, tools, schedule, permissions and
+approval policy — and then runs it on a schedule with a complete audit trail.
+
+---
+
+## Architecture
+
+```
+React + Vite + TS (Vercel)
+        │  REST + SSE
+        ▼
+FastAPI modular monolith (Render)
+        │
+        ├── Domain services      organizations · teams · buttlrs · integrations · approvals · audit
+        ├── Buttlr Runtime       model router → planner → permission engine → tools → observation
+        ├── Scheduler            APScheduler (cron / interval, per-Buttlr timezone)
+        └── Store                Firestore (prod) · in-memory + JSON (dev/demo)
+```
+
+The runtime is a loop, not a chain of nodes:
+
+```
+Intent → Planner → Permission Engine → Tool Execution → Observation → Planner → … → Completion
+```
+
+Every tool call passes through the permission engine **before** it executes. The engine returns
+`ALLOW`, `DENY` or `REQUEST_APPROVAL` based on the policy stored server-side — never on anything
+the browser sends.
+
+---
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `backend/app/core` | config, logging, errors, security, request context |
+| `backend/app/database` | `Store` contract, Firestore + in-memory implementations |
+| `backend/app/auth` | Firebase ID-token verification, dev issuer, user provisioning |
+| `backend/app/schemas` | Pydantic domain models (single source of truth for the API) |
+| `backend/app/api/v1` | HTTP routers |
+| `backend/app/services` | domain services (organizations, teams, buttlrs, approvals, audit) |
+| `backend/app/runtime` | models · planner · executor · permissions · tools · memory |
+| `backend/app/integrations` | OAuth + provider clients |
+| `backend/app/scheduler` | scheduled + event-driven execution |
+| `frontend/src` | React application |
+
+---
+
+## Branch model
+
+| Branch | Purpose | Deploys to |
+| --- | --- | --- |
+| `main` | production, always deployable | Vercel / Render **production** |
+| `dev` | integration, staging | Vercel / Render **staging** |
+| `feat/*` | one slice of work, merged into `dev` with `--no-ff` | — |
+
+Flow: `feat/*` → `dev` → `main`.
+
+---
+
+## Local development
+
+### Backend
+
+```bash
+cd backend
+uv sync
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+Runs with `AUTH_MODE=dev` and the in-memory/file store by default, so no cloud account is needed.
+Interactive API docs: <http://localhost:8000/docs>.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+<http://localhost:5173> — the dev server proxies `/api` to the backend.
+
+### Demo data
+
+```bash
+curl -X POST http://localhost:8000/api/v1/dev/seed
+```
+
+Creates **Acme Technologies**, the Engineering team, a connected GitHub account and the
+`PR Guardian` Buttlr so the whole flow is walkable immediately.
+
+---
+
+## Configuration
+
+All settings come from environment variables (see `backend/.env.example` and
+`frontend/.env.example`). Nothing requires a cloud account to boot.
+
+| Variable | Effect |
+| --- | --- |
+| `AUTH_MODE` | `dev` (self-issued JWTs) or `firebase` (verify Firebase ID tokens) |
+| `STORE_BACKEND` | `auto` \| `firestore` \| `memory` |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | enable a cloud model provider |
+| `OLLAMA_BASE_URL` | enable a local model provider |
+| `GITHUB_TOKEN` | server-wide GitHub fallback credential |
+| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | enable GitHub OAuth connect flow |
+
+When no model credentials are present the runtime uses the built-in **deterministic planner**
+(`heuristic` provider). It is a real rule-based planner — the product works end to end offline,
+and the same code path is used by the test-suite.
+
+---
+
+## Tests
+
+```bash
+cd backend && uv run pytest        # domain, permission, approval and runtime tests
+cd frontend && npm run build       # type-check + production build
+```
+
+---
+
+## Deployment
+
+* `render.yaml` — backend web service + worker, from `dev` (staging) and `main` (production).
+* `frontend/vercel.json` — SPA rewrites; set `VITE_API_BASE_URL` per environment.
+* `docker-compose.yml` — full stack locally, including an optional Ollama container.

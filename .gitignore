@@ -1,0 +1,42 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+backend/.data/
+*.db
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+frontend/.data/
+
+# ---- Env & secrets ----
+.env
+.env.*
+!.env.example
+!.env.example.*
+*.pem
+serviceAccount*.json
+firebase-adminsdk*.json
+
+# ---- Editors / OS ----
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Build / deploy ----
+.vercel
+.render
+*.log
