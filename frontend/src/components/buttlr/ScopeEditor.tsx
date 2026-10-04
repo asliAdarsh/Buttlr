@@ -1,7 +1,12 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { Plug } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/common/EmptyState";
 import { providerLabel } from "@/lib/format";
-import type { IntegrationPublic } from "@/lib/types";
+import type { AppMeta } from "@/components/buttlr/ToolPicker";
+import type { IntegrationPublic, IntegrationResource } from "@/lib/types";
 
 function readResourceIds(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
@@ -14,21 +19,57 @@ function readResourceIds(value: unknown): string[] {
   return [];
 }
 
+/** What each app lets you narrow down. Google has no container: the account is the scope. */
+const SCOPE_NOUN: Record<string, string> = {
+  github: "repositories",
+  jira: "projects",
+};
+
+const SCOPE_HINT: Record<string, string> = {
+  github: "GitHub tools only reach the repositories ticked here.",
+  jira: "Jira tools only reach the projects ticked here.",
+};
+
 export function ScopeEditor({
   scope,
   onChange,
   integrations,
+  apps = [],
+  loading = false,
 }: {
   scope: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
   integrations: IntegrationPublic[];
+  /** Catalogue names and logos; only connected apps are offered. */
+  apps?: AppMeta[];
+  loading?: boolean;
 }) {
-  const connected = useMemo(
-    () => integrations.filter((integration) => integration.status === "connected"),
-    [integrations],
-  );
+  const appFor = useMemo(() => new Map(apps.map((app) => [app.provider, app])), [apps]);
 
-  const covered = new Set<string>(connected.map((integration) => integration.provider));
+  const connected = integrations.filter((integration) => integration.status === "connected");
+
+  // Two connections can share a provider (a workspace one and a personal one).
+  // Scope is written per provider, so merge their resources into a single list.
+  const groups = useMemo(() => {
+    const byProvider = new Map<string, IntegrationResource[]>();
+    for (const integration of connected) {
+      const existing = byProvider.get(integration.provider);
+      if (existing) existing.push(...integration.resources);
+      else byProvider.set(integration.provider, [...integration.resources]);
+    }
+    return [...byProvider.entries()].map(([provider, resources]) => ({
+      provider,
+      name: appFor.get(provider)?.name ?? providerLabel(provider),
+      logo: appFor.get(provider)?.logo ?? "🔌",
+      resources,
+      accounts: connected
+        .filter((integration) => integration.provider === provider)
+        .map((integration) => integration.account || integration.display_name)
+        .filter((account): account is string => Boolean(account)),
+    }));
+  }, [connected, appFor]);
+
+  const covered = new Set<string>(groups.map((group) => group.provider));
 
   const write = (provider: string, resourceIds: string[]) => {
     const next = { ...scope };
@@ -40,45 +81,70 @@ export function ScopeEditor({
     onChange(next);
   };
 
-  if (connected.length === 0) {
+  if (loading && groups.length === 0) {
     return (
       <p className="rounded-md border border-border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Scope is set per connected account. Connect an integration to choose which repositories and
-        projects this Buttlr may reach.
+        Checking which apps are connected…
       </p>
     );
   }
 
+  if (groups.length === 0) {
+    return (
+      <EmptyState
+        icon={Plug}
+        title="No apps connected yet"
+        description="Scope is set per connected account. Connect an app to choose which repositories and projects this Buttlr may reach — you can still save it as a draft in the meantime."
+        action={
+          <Button asChild size="sm">
+            <Link to="/integrations">
+              <Plug aria-hidden="true" />
+              Connect an app
+            </Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  // Anything stored under a key we cannot edit here survives untouched.
   const extraKeys = Object.keys(scope).filter((key) => !covered.has(key));
 
   return (
     <div className="space-y-5">
-      {connected.map((integration) => {
-        const selected = readResourceIds(scope[integration.provider]);
+      {groups.map((group) => {
+        const selected = readResourceIds(scope[group.provider]);
+        const noun = SCOPE_NOUN[group.provider];
         return (
-          <fieldset key={integration.id}>
-            <legend className="text-sm font-medium">
-              {integration.display_name}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {providerLabel(integration.provider)}
-              </span>
+          <fieldset key={group.provider}>
+            <legend className="flex min-w-0 items-center gap-2 text-sm font-medium">
+              <span aria-hidden="true">{group.logo}</span>
+              <span className="truncate">{group.name}</span>
             </legend>
-            {integration.resources.length === 0 ? (
+            {group.accounts.length > 0 && SCOPE_HINT[group.provider] ? (
+              <p className="text-xs text-muted-foreground">
+                {group.accounts.join(" · ")} · {SCOPE_HINT[group.provider]}
+              </p>
+            ) : null}
+
+            {group.resources.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                This account has not reported any resources yet.
+                {noun
+                  ? `This account has not reported any ${noun} yet.`
+                  : "Nothing to narrow down: the connected account is the whole of its reach."}
               </p>
             ) : (
               <ul className="mt-2 space-y-1.5">
-                {integration.resources.map((resource) => (
-                  <li key={resource.id} className="flex items-center gap-2">
+                {group.resources.map((resource) => (
+                  <li key={`${group.provider}-${resource.id}`} className="flex items-center gap-2">
                     <input
-                      id={`scope-${integration.id}-${resource.id}`}
+                      id={`scope-${group.provider}-${resource.id}`}
                       type="checkbox"
-                      className="size-4 rounded border-border accent-primary"
+                      className="size-4 shrink-0 rounded border-border accent-primary"
                       checked={selected.includes(resource.id)}
                       onChange={() =>
                         write(
-                          integration.provider,
+                          group.provider,
                           selected.includes(resource.id)
                             ? selected.filter((id) => id !== resource.id)
                             : [...selected, resource.id],
@@ -86,7 +152,7 @@ export function ScopeEditor({
                       }
                     />
                     <Label
-                      htmlFor={`scope-${integration.id}-${resource.id}`}
+                      htmlFor={`scope-${group.provider}-${resource.id}`}
                       className="min-w-0 flex-1"
                     >
                       <span className="block truncate text-sm">{resource.name}</span>

@@ -17,8 +17,7 @@ from app.database.factory import build_store
 from app.database.repository import Repository
 from app.integrations.service import IntegrationService
 from app.runtime.executor import ButtlrExecutor
-from app.runtime.models.providers import build_providers
-from app.runtime.models.router import ModelRouter
+from app.runtime.models.registry import ModelRegistry
 from app.runtime.permissions.engine import engine as permission_engine
 from app.runtime.pubsub import ExecutionBus
 from app.runtime.pubsub import bus as default_bus
@@ -59,7 +58,7 @@ class Container:
 
         # runtime
         self.registry = build_registry()
-        self.models = ModelRouter(build_providers(self.settings))
+        self.models = ModelRegistry(self.store, self.settings, self.audit)
         self.permissions = permission_engine
 
         # domain
@@ -131,7 +130,7 @@ class Container:
             "buttlr ready store=%s auth=%s providers=%s",
             self.store.backend,
             self.settings.auth_mode,
-            ",".join(self.models.providers.keys()),
+            ",".join(self.models.deployment.providers.keys()),
         )
 
     def _require_configuration(self) -> None:
@@ -147,8 +146,9 @@ class Container:
     async def shutdown(self) -> None:
         await self.scheduler.stop()
         await self.runner.stop()
-        for provider in self.models.providers.values():
+        for provider in self.models.deployment.providers.values():
             await provider.close()
+        await self.models.close()
         await self.store.close()
 
 

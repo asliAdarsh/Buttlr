@@ -23,6 +23,12 @@ os.environ["GITHUB_OAUTH_CLIENT_ID"] = ""
 os.environ["GITHUB_OAUTH_CLIENT_SECRET"] = ""
 os.environ["GOOGLE_OAUTH_CLIENT_ID"] = ""
 os.environ["GOOGLE_OAUTH_CLIENT_SECRET"] = ""
+# Model providers too: a developer's own keys must not change what the suite asserts, and a
+# test must never spend someone's credits.
+os.environ["OPENAI_API_KEY"] = ""
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["GOOGLE_API_KEY"] = ""
+os.environ["OLLAMA_BASE_URL"] = ""
 os.environ["MEMORY_STORE_PATH"] = os.path.join(
     tempfile.mkdtemp(prefix="buttlr-test-"), "store.json"
 )

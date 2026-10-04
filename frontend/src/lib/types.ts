@@ -604,6 +604,27 @@ export interface OAuthClientUpdate {
   client_secret?: string | null;
 }
 
+export interface ModelProviderEntry {
+  provider: string;
+  name: string;
+  kind: "cloud" | "local" | "builtin" | string;
+  description: string;
+  configured: boolean;
+  source?: "workspace" | "deployment" | null;
+  model?: string | null;
+  base_url?: string | null;
+  requires_key: boolean;
+  requires_base_url: boolean;
+  docs_url?: string | null;
+  note: string;
+}
+
+export interface ModelProviderUpdate {
+  api_key?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+}
+
 export interface IntegrationScopesUpdate {
   resource_ids: string[];
 }

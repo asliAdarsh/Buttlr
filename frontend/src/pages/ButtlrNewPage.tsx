@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Field } from "@/components/common/Field";
 import { SectionCard } from "@/components/common/SectionCard";
-import { ToolPicker } from "@/components/buttlr/ToolPicker";
+import { ToolPicker, describeApps, resolveToolChoices } from "@/components/buttlr/ToolPicker";
 import { ScopeEditor } from "@/components/buttlr/ScopeEditor";
 import { ModelPicker } from "@/components/buttlr/ModelPicker";
 import { ExecutionTimeline } from "@/components/buttlr/ExecutionTimeline";
@@ -32,9 +32,11 @@ import { ScheduleBadge, describeSchedule } from "@/components/buttlr/ScheduleBad
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
+  useAvailableModelProviders,
   useCreateButtlr,
   useDeployButtlr,
   useDraftButtlr,
+  useIntegrationCatalogue,
   useIntegrations,
   useMembers,
   useMeta,
@@ -652,6 +654,8 @@ export function ButtlrNewPage() {
   const members = useMembers(organizationId);
   const tools = useTools();
   const integrations = useIntegrations(organizationId);
+  const catalogue = useIntegrationCatalogue(organizationId);
+  const availableModels = useAvailableModelProviders(organizationId);
 
   const draftButtlr = useDraftButtlr(organizationId ?? "");
   const refineButtlr = useRefineButtlr(organizationId ?? "");
@@ -697,6 +701,25 @@ export function ButtlrNewPage() {
     [toolCatalogue],
   );
 
+  const apps = useMemo(
+    () => describeApps(catalogue.data ?? [], integrations.data ?? []),
+    [catalogue.data, integrations.data],
+  );
+  const appNames = useMemo(() => new Map(apps.map((app) => [app.provider, app.name])), [apps]);
+
+  // The work offered is the work a connected app can actually do; anything already
+  // selected from an app with no connection stays visible so it can be removed.
+  const { available: availableTools, detached: detachedTools } = useMemo(
+    () => resolveToolChoices(toolCatalogue, apps, draft?.tools ?? []),
+    [toolCatalogue, apps, draft?.tools],
+  );
+
+  const appsAreLoading = tools.isLoading || integrations.isLoading || catalogue.isLoading;
+  const modelProviderIds = useMemo(
+    () => (availableModels.data ?? []).map((entry) => entry.provider),
+    [availableModels.data],
+  );
+
   // The catalogue is the authority on which account a tool needs; the builder's own
   // `integrations` list carries tool-name prefixes the API does not accept.
   const providersForTools = useMemo(() => {
@@ -728,6 +751,10 @@ export function ButtlrNewPage() {
   const missingIntegrations = useMemo(
     () => requiredProviders.filter((provider) => !connectedProviders.has(provider)),
     [requiredProviders, connectedProviders],
+  );
+
+  const missingAppNames = missingIntegrations.map(
+    (provider) => appNames.get(provider) ?? humanize(provider),
   );
 
   const update = (patch: Partial<ButtlrCreate>) =>
@@ -828,7 +855,7 @@ export function ButtlrNewPage() {
 
       if (missingIntegrations.length > 0) {
         toast.success("Saved as a draft", {
-          description: `Connect ${missingIntegrations.map(humanize).join(", ")} before deploying.`,
+          description: `Connect ${missingAppNames.join(", ")} before deploying.`,
         });
         navigate(`/buttlrs/${id}`);
         return;
@@ -1002,12 +1029,12 @@ export function ButtlrNewPage() {
         {missingIntegrations.length > 0 ? (
           <Alert
             tone="warning"
-            title="These systems are not connected yet"
+            title={`${missingAppNames.join(", ")} ${missingAppNames.length === 1 ? "is" : "are"} not connected yet`}
             icon={<Link2 className="size-4" />}
           >
             <span>
-              This configuration uses {missingIntegrations.map(humanize).join(", ")}. You can still
-              create it now — it stays a draft until they are connected.{" "}
+              This configuration uses {missingAppNames.join(", ")}. You can still create it now — it
+              stays a draft until{" "}
               <Link to="/integrations" className="font-medium underline underline-offset-4">
                 Open integrations
               </Link>
@@ -1169,10 +1196,13 @@ export function ButtlrNewPage() {
 
         <SectionCard
           title="What it can use"
-          description="Each tool needs a connected account. Risk and permission come from the catalogue."
+          description="Only the apps connected to this workspace are listed. Risk and permission come from the catalogue."
         >
           <ToolPicker
-            tools={toolCatalogue}
+            tools={availableTools}
+            detachedTools={detachedTools}
+            apps={apps}
+            loading={appsAreLoading}
             value={draft.tools ?? []}
             onChange={(next) => update({ tools: next })}
           />
@@ -1186,6 +1216,8 @@ export function ButtlrNewPage() {
             scope={draft.scope ?? {}}
             onChange={(next) => update({ scope: next })}
             integrations={integrations.data ?? []}
+            apps={apps}
+            loading={appsAreLoading}
           />
         </SectionCard>
 
@@ -1203,7 +1235,7 @@ export function ButtlrNewPage() {
         >
           <ModelPicker
             value={model}
-            providers={meta.data?.providers ?? []}
+            providers={modelProviderIds}
             onChange={(next) => update({ model: next })}
           />
         </SectionCard>
@@ -1312,7 +1344,7 @@ export function ButtlrNewPage() {
                 </span>
               )}
             </SummaryRow>
-            <SummaryRow label="Integrations">
+            <SummaryRow label="Apps">
               {requiredProviders.length === 0 ? (
                 <span className="text-muted-foreground">None needed</span>
               ) : (
@@ -1322,7 +1354,7 @@ export function ButtlrNewPage() {
                       key={provider}
                       tone={connectedProviders.has(provider) ? "success" : "warning"}
                     >
-                      {humanize(provider)}
+                      {appNames.get(provider) ?? humanize(provider)}
                       {connectedProviders.has(provider) ? " · connected" : " · not connected"}
                     </Badge>
                   ))}
@@ -1334,7 +1366,7 @@ export function ButtlrNewPage() {
                 <span className="text-muted-foreground">Everything the connected accounts allow</span>
               ) : (
                 <span className="break-words">
-                  {Object.keys(draft.scope ?? {}).map((key) => humanize(key)).join(", ")}
+                  {Object.keys(draft.scope ?? {}).map((key) => appNames.get(key) ?? humanize(key)).join(", ")}
                 </span>
               )}
             </SummaryRow>
@@ -1385,7 +1417,7 @@ export function ButtlrNewPage() {
         {missingIntegrations.length > 0 ? (
           <Alert
             tone="warning"
-            title={`Connect ${missingIntegrations.map(humanize).join(", ")} to deploy`}
+            title={`Connect ${missingAppNames.join(", ")} to deploy`}
             icon={<Link2 className="size-4" />}
           >
             <span>

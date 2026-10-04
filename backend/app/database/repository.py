@@ -41,6 +41,11 @@ class Paths:
         return org_path(organization_id, "oauthApps")
 
     @staticmethod
+    def model_providers(organization_id: str) -> str:
+        """Model provider credentials a workspace entered itself, one document per provider."""
+        return org_path(organization_id, "modelProviders")
+
+    @staticmethod
     def executions(organization_id: str) -> str:
         return org_path(organization_id, "executions")
 
