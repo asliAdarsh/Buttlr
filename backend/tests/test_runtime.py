@@ -124,6 +124,109 @@ async def _resolved(planner: Planner) -> Planner:
     return planner
 
 
+async def test_a_repeated_identical_call_is_not_run_or_approved_twice(
+    container: Container,
+) -> None:
+    """The loop a weak or offline model produces: ask, approve, ask the same thing again."""
+    tool = EchoTool()
+    policy = ApprovalPolicy(rules=[ApprovalRule(tool=EchoTool.name, mode=ApprovalMode.ASK)])
+    principal, organization, access, buttlr = await build_world(container, tool, policy=policy)
+    scripted(
+        container,
+        [
+            Plan.call(EchoTool.name, {"message": "hello"}),
+            # The model re-issues the identical call after the resume.
+            Plan.call(EchoTool.name, {"message": "hello"}),
+            Plan.finish("Reported the result."),
+        ],
+    )
+    execution = await container.executions.create(
+        organization.id, buttlr, ExecutionTrigger.MANUAL, GOAL, requested_by=principal.user_id
+    )
+    paused = await container.executor.run(
+        ExecutionJob(
+            organization=organization,
+            buttlr=buttlr,
+            execution=execution,
+            goal=GOAL,
+            trigger=ExecutionTrigger.MANUAL,
+            requested_by=principal.user_id,
+            access=access,
+        )
+    )
+    approval = (await container.approvals.list(organization.id, status=ApprovalStatus.PENDING)).items[0]
+    decided = await container.approvals.decide(
+        principal, organization.id, approval.id, True, "Go ahead"
+    )
+    fresh = await container.executions.get(organization.id, paused.id)
+    final = await container.executor.resume(
+        ResumeJob(
+            organization=organization,
+            buttlr=buttlr,
+            execution=fresh,
+            approval=decided,
+            granted=True,
+            access=access,
+        )
+    )
+
+    assert final.status == ExecutionStatus.COMPLETED
+    assert tool.calls == ["hello"], "the tool runs once, not once per approval"
+    assert (await container.approvals.list(organization.id)).total == 1, (
+        "the same action must never ask a second time"
+    )
+    assert any(step.status == StepStatus.SKIPPED for step in final.steps)
+    assert final.output and "Reported" in final.output
+
+
+async def test_a_run_stops_instead_of_asking_forever(container: Container) -> None:
+    """A safety valve: many distinct gated actions end the run with an explanation."""
+    tool = EchoTool()
+    policy = ApprovalPolicy(rules=[ApprovalRule(tool=EchoTool.name, mode=ApprovalMode.ASK)])
+    principal, organization, access, buttlr = await build_world(container, tool, policy=policy)
+    # Distinct calls, so the duplicate guard does not apply — each one legitimately asks.
+    plans = [Plan.call(EchoTool.name, {"message": f"message {index}"}) for index in range(6)]
+    scripted(container, [*plans, Plan.finish("never reached")])
+
+    execution = await container.executions.create(
+        organization.id, buttlr, ExecutionTrigger.MANUAL, GOAL, requested_by=principal.user_id
+    )
+    outcome = await container.executor.run(
+        ExecutionJob(
+            organization=organization,
+            buttlr=buttlr,
+            execution=execution,
+            goal=GOAL,
+            trigger=ExecutionTrigger.MANUAL,
+            requested_by=principal.user_id,
+            access=access,
+        )
+    )
+    for _ in range(8):
+        pending = await container.approvals.list(organization.id, status=ApprovalStatus.PENDING)
+        if pending.total == 0:
+            break
+        decided = await container.approvals.decide(
+            principal, organization.id, pending.items[0].id, True, None
+        )
+        fresh = await container.executions.get(organization.id, outcome.id)
+        outcome = await container.executor.resume(
+            ResumeJob(
+                organization=organization,
+                buttlr=buttlr,
+                execution=fresh,
+                approval=decided,
+                granted=True,
+                access=access,
+            )
+        )
+    assert outcome.status == ExecutionStatus.COMPLETED
+    assert outcome.output and "approval" in outcome.output.lower()
+    assert (await container.approvals.list(organization.id)).total <= (
+        container.settings.max_approvals_per_run
+    )
+
+
 async def test_ask_policy_pauses_the_run_then_resumes_after_approval(container: Container) -> None:
     tool = EchoTool()
     policy = ApprovalPolicy(
