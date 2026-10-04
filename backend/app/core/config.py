@@ -8,10 +8,10 @@ and the in-memory/file store. Production deployments flip ``AUTH_MODE=firebase``
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 AuthMode = Literal["dev", "firebase"]
 StoreBackend = Literal["auto", "firestore", "memory"]
@@ -32,7 +32,9 @@ class Settings(BaseSettings):
     environment: Environment = "development"
     api_v1_prefix: str = "/api/v1"
     frontend_url: str = "http://localhost:5173"
-    cors_origins: list[str] = Field(
+    # NoDecode: the value is a plain comma-separated list, not JSON. Without it,
+    # pydantic-settings rejects the string before the validator below ever runs.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
@@ -87,12 +89,11 @@ class Settings(BaseSettings):
     estimated_cost_per_1k_output: float = 0.0
 
     # ---- integrations ------------------------------------------------------
-    github_token: str | None = None
+    # Optional deployment-wide OAuth apps. A workspace can register its own under
+    # Integrations → OAuth apps and needs none of these; provider credentials themselves are
+    # never read from the environment.
     github_oauth_client_id: str | None = None
     github_oauth_client_secret: str | None = None
-    jira_base_url: str | None = None
-    jira_email: str | None = None
-    jira_api_token: str | None = None
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     oauth_redirect_base_url: str = "http://localhost:8000"
@@ -104,6 +105,7 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
+        """Accept both ``a,b`` and a real list, so `.env` stays readable."""
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value

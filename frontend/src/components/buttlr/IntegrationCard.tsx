@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Unplug } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusPill } from "@/components/common/StatusPill";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import { formatRelative } from "@/lib/format";
-import type { IntegrationCatalogEntry, IntegrationPublic } from "@/lib/types";
+import { formatRelative, providerLabel } from "@/lib/format";
+import type {
+  IntegrationCatalogEntry,
+  IntegrationPublic,
+  OAuthClientPublic,
+} from "@/lib/types";
+
+const MANAGE_HINT = "Only the account's owner or an organisation admin can manage this connection";
 
 export function IntegrationCard({
   integration,
@@ -17,6 +24,8 @@ export function IntegrationCard({
   onDisconnect,
   onUpdateScopes,
   busy = false,
+  canManage = true,
+  oauthClient = null,
 }: {
   integration: IntegrationPublic;
   entry?: IntegrationCatalogEntry;
@@ -24,12 +33,29 @@ export function IntegrationCard({
   onDisconnect: () => void;
   onUpdateScopes: (resourceIds: string[]) => void;
   busy?: boolean;
+  canManage?: boolean;
+  oauthClient?: OAuthClientPublic | null;
 }) {
+
   const [selected, setSelected] = useState<string[]>(() =>
     integration.resources.filter((resource) => resource.selected).map((resource) => resource.id),
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const connected = integration.status === "connected";
+  const readOnly = !canManage;
+  const owner = integration.owner_name?.trim();
+
+  // A wrapped span keeps the tooltip reachable by keyboard around a disabled button.
+  const guarded = (label: string, node: ReactNode) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex" tabIndex={0} aria-label={`${label} — ${MANAGE_HINT}`}>
+          {node}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{MANAGE_HINT}</TooltipContent>
+    </Tooltip>
+  );
 
   const toggle = (id: string) => {
     setSelected((current) =>
@@ -49,10 +75,24 @@ export function IntegrationCard({
               {entry?.name ?? integration.display_name}
             </h3>
             <StatusPill status={integration.status} size="sm" />
+            {integration.scope === "personal" ? (
+              <Badge tone="muted">{owner ? `${owner}'s account` : "Your account"}</Badge>
+            ) : (
+              <Badge tone="primary">Shared with the workspace</Badge>
+            )}
           </div>
           <p className="truncate text-xs text-muted-foreground">
             {integration.account ?? "No account connected"}
           </p>
+          {oauthClient ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {oauthClient.configured
+                ? oauthClient.source === "workspace"
+                  ? `Sign-in uses this workspace's own ${providerLabel(integration.provider)} app`
+                  : `Sign-in uses this deployment's ${providerLabel(integration.provider)} app`
+                : `${providerLabel(integration.provider)} sign-in is not configured for this workspace`}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -93,7 +133,7 @@ export function IntegrationCard({
                   type="checkbox"
                   className="size-4 rounded border-border accent-primary"
                   checked={selected.includes(resource.id)}
-                  disabled={!connected || busy}
+                  disabled={readOnly || !connected || busy}
                   onChange={() => toggle(resource.id)}
                 />
                 <Label htmlFor={`resource-${integration.id}-${resource.id}`} className="min-w-0 flex-1">
@@ -105,33 +145,65 @@ export function IntegrationCard({
               </li>
             ))}
           </ul>
-          <div className="mt-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!connected || busy}
-              onClick={() => onUpdateScopes(selected)}
-            >
-              Save resources
-            </Button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {readOnly ? (
+              guarded(
+                "Save resources",
+                <Button variant="secondary" size="sm" disabled>
+                  Save resources
+                </Button>,
+              )
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!connected || busy}
+                onClick={() => onUpdateScopes(selected)}
+              >
+                Save resources
+              </Button>
+            )}
+            {readOnly ? (
+              <span className="text-xs text-muted-foreground">{MANAGE_HINT}</span>
+            ) : null}
           </div>
         </fieldset>
       ) : null}
 
       <footer className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onRefresh()}
-          loading={busy}
-        >
-          <RefreshCw aria-hidden="true" className="mr-1.5 size-4" />
-          Refresh
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)}>
-          <Unplug aria-hidden="true" className="mr-1.5 size-4" />
-          Disconnect
-        </Button>
+        {readOnly ? (
+          guarded(
+            "Refresh",
+            <Button variant="outline" size="sm" disabled>
+              <RefreshCw aria-hidden="true" className="mr-1.5 size-4" />
+              Refresh
+            </Button>,
+          )
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onRefresh()}
+            loading={busy}
+          >
+            <RefreshCw aria-hidden="true" className="mr-1.5 size-4" />
+            Refresh
+          </Button>
+        )}
+        {readOnly ? (
+          guarded(
+            "Disconnect",
+            <Button variant="ghost" size="sm" disabled>
+              <Unplug aria-hidden="true" className="mr-1.5 size-4" />
+              Disconnect
+            </Button>,
+          )
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)}>
+            <Unplug aria-hidden="true" className="mr-1.5 size-4" />
+            Disconnect
+          </Button>
+        )}
         <span className="ml-auto text-xs text-muted-foreground">
           Last used {formatRelative(integration.last_used_at)}
         </span>

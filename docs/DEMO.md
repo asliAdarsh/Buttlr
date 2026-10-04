@@ -11,9 +11,10 @@ cd frontend && npm install && npm run dev        # http://localhost:5173
 ```
 
 Optional, for real repository data — create a GitHub fine-grained personal access token with
-read access to one or two repositories. You can paste it in step 1 or connect it later in
-**Integrations**. No token? The flow still works end to end; GitHub steps fail closed with a
-clear "connect GitHub" message and everything else (permissions, approval, audit) is real.
+read access to one or two repositories. You can paste it into the seed, or skip it entirely and
+connect it later under **Integrations**. No token? The flow still works end to end; GitHub steps
+fail closed with a clear "connect GitHub" message and everything else (permissions, approval,
+audit) is real.
 
 ## 1. Sign in and create the workspace
 
@@ -51,8 +52,14 @@ Show refinement in natural language: *"only monitor acme/backend"*, *"run at 8 A
 
 ## 4. Connect GitHub
 
-**Integrations → GitHub**, paste the token, and select the repositories. Deploy needs a
-connected integration — that gate is deliberate.
+**Integrations → GitHub**, paste the token, and choose **Just me** (or, as an owner/admin,
+**Everyone in the workspace** for a shared account), then select the repositories. The
+connection is stored encrypted against your account — no environment variable is involved.
+Deploy needs a connected account: that gate is deliberate.
+
+Want Google or GitHub sign-in instead of a token? Register an OAuth app (client ID + secret)
+under **Integrations → OAuth apps**; the panel shows the exact redirect URL to paste into the
+provider.
 
 ## 5. Deploy, then watch it work
 

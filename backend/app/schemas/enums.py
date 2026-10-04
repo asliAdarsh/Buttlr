@@ -157,6 +157,17 @@ class IntegrationStatus(str, Enum):
     EXPIRED = "expired"
 
 
+class IntegrationScope(str, Enum):
+    """Who a connection belongs to.
+
+    ``ORGANIZATION`` is a shared workspace account an administrator set up;
+    ``PERSONAL`` is one person's own account, used by the Buttlrs they run.
+    """
+
+    ORGANIZATION = "organization"
+    PERSONAL = "personal"
+
+
 class AuditAction(str, Enum):
     ORGANIZATION_CREATED = "organization.created"
     ORGANIZATION_UPDATED = "organization.updated"

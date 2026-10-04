@@ -1,9 +1,14 @@
 """Connections between an organization and the tools its Buttlrs use.
 
-Credentials are encrypted at rest with ``app.core.crypto`` and never leave this
-module in plaintext: every public method returns a ``to_public()`` projection.
-Only :meth:`IntegrationService.credentials_for` hands decrypted credentials out,
-and only to the runtime, keyed by provider.
+Anyone can connect **their own** account; an owner or admin can additionally connect a
+**shared** account for the whole workspace. Both are stored encrypted at rest with
+``app.core.crypto`` and never leave this module in plaintext: every public method returns a
+``to_public()`` projection, and only :meth:`IntegrationService.credentials_for` hands
+decrypted credentials out, keyed by provider.
+
+A Buttlr runs with, in order of preference, the account of the person running it, the account
+of the person who owns it, and finally the workspace's shared account. Nothing is read from
+the environment.
 """
 
 from __future__ import annotations
@@ -12,7 +17,7 @@ from datetime import timedelta
 from typing import Any
 
 from app.core.config import Settings
-from app.core.crypto import seal_credentials, unseal_credentials
+from app.core.crypto import mask_secret, seal_credentials, unseal_credentials
 from app.core.errors import (
     IntegrationError,
     NotFoundError,
@@ -27,6 +32,7 @@ from app.integrations.google import GoogleClient
 from app.integrations.jira import JiraClient
 from app.integrations.oauth import (
     build_authorization_url,
+    deployment_client,
     exchange_code,
     provider_display_name,
     require_provider_config,
@@ -40,6 +46,7 @@ from app.schemas.enums import (
     ActorType,
     AuditAction,
     IntegrationProvider,
+    IntegrationScope,
     IntegrationStatus,
     OrgRole,
 )
@@ -51,6 +58,8 @@ from app.schemas.integration import (
     IntegrationPublic,
     IntegrationResource,
     IntegrationScopesUpdate,
+    OAuthClientPublic,
+    OAuthClientUpdate,
     OAuthStartResponse,
 )
 
@@ -154,58 +163,127 @@ class IntegrationService:
 
     # ---- reads ------------------------------------------------------------
 
-    async def list(self, org_id: str) -> list[IntegrationPublic]:
+    async def list(
+        self, org_id: str, *, viewer_id: str, is_admin: bool = False
+    ) -> list[IntegrationPublic]:
+        """Connections this person may see.
+
+        Everyone sees the workspace's shared connections and their own; administrators also
+        see the personal connections they are responsible for.
+        """
         rows = await self.repo.list(
             Paths.integrations(org_id), order_by="created_at", sort=Sort.DESC
         )
-        return [self._to_model(row).to_public() for row in rows]
+        visible: list[IntegrationPublic] = []
+        for row in rows:
+            integration = self._to_model(row)
+            if (
+                integration.scope is IntegrationScope.PERSONAL
+                and not is_admin
+                and integration.owner_id != viewer_id
+            ):
+                continue
+            visible.append(integration.to_public())
+        return visible
 
     async def get(
         self, org_id: str, provider: IntegrationProvider | str
     ) -> Integration | None:
+        """The workspace's shared connection for a provider, if there is one."""
         row = await self._load(org_id, provider)
         return self._to_model(row) if row else None
 
+    async def preferred(
+        self,
+        org_id: str,
+        provider: IntegrationProvider,
+        *,
+        user_id: str | None = None,
+        creator_id: str | None = None,
+    ) -> Integration | None:
+        """The connection a run by this person would use: theirs, the owner's, then shared."""
+        by_key = await self._index(org_id)
+        return self._preferred(by_key, provider, user_id, creator_id)
+
     async def credentials_for(
-        self, org_id: str, buttlr: Buttlr
+        self, org_id: str, buttlr: Buttlr, user_id: str | None = None
     ) -> dict[str, dict[str, Any]]:
         """Decrypted credentials for every provider this Buttlr can reach.
 
-        A provider that isn't connected contributes nothing, so the tool fails
-        closed with its own actionable message.
+        Resolution order per provider: the account of the person running the Buttlr, then the
+        account of the person who owns it, then the workspace's shared account. A provider
+        with none of those contributes nothing, so its tool fails closed with its own
+        actionable message.
         """
         wanted = _providers_for(buttlr)
         if not wanted:
             return {}
-        rows = await self.repo.list(Paths.integrations(org_id), order_by=None)
+        by_key = await self._index(org_id)
         resolved: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            integration = self._to_model(row)
-            if integration.provider not in wanted:
-                continue
-            if integration.status in _UNUSABLE_STATUSES:
-                continue
-            if not integration.credentials:
+        for provider in sorted(wanted, key=lambda item: item.value):
+            integration = self._preferred(by_key, provider, user_id, buttlr.created_by)
+            if integration is None:
                 continue
             try:
-                resolved[integration.provider.value] = unseal_credentials(
-                    integration.credentials
-                )
+                resolved[provider.value] = unseal_credentials(integration.credentials)
             except Exception:
                 logger.warning(
                     "could not unseal %s credentials for org %s",
-                    integration.provider.value,
+                    provider.value,
                     org_id,
                 )
         return resolved
+
+    async def _index(
+        self, org_id: str
+    ) -> dict[tuple[IntegrationProvider, str | None], Integration]:
+        """Stored connections keyed by (provider, owner) — ``owner`` is ``None`` when shared."""
+        rows = await self.repo.list(Paths.integrations(org_id), order_by=None)
+        index: dict[tuple[IntegrationProvider, str | None], Integration] = {}
+        for row in rows:
+            integration = self._to_model(row)
+            owner = (
+                integration.owner_id
+                if integration.scope is IntegrationScope.PERSONAL
+                else None
+            )
+            index[(integration.provider, owner)] = integration
+        return index
+
+    @staticmethod
+    def _preferred(
+        index: dict[tuple[IntegrationProvider, str | None], Integration],
+        provider: IntegrationProvider,
+        *owner_ids: str | None,
+    ) -> Integration | None:
+        for owner_id in owner_ids:
+            if not owner_id:
+                continue
+            candidate = index.get((provider, owner_id))
+            if candidate is not None and _usable(candidate):
+                return candidate
+        shared = index.get((provider, None))
+        return shared if shared is not None and _usable(shared) else None
 
     # ---- token connections ------------------------------------------------
 
     async def connect_token(
         self, principal: Principal, org_id: str, payload: IntegrationConnectToken
     ) -> IntegrationPublic:
-        """Connect GitHub or Jira with a personal access token / API token."""
-        await self._require_admin(org_id, principal)
+        """Connect GitHub or Jira with a personal access token / API token.
+
+        Any member may connect their own account. Only an owner or admin may connect the
+        shared account the whole workspace uses.
+        """
+        role = await self._require_member(org_id, principal)
+        scope = payload.scope
+        if scope is IntegrationScope.ORGANIZATION and ROLE_RANK.get(
+            role, 0
+        ) < ROLE_RANK[OrgRole.ADMIN]:
+            raise PermissionDeniedError(
+                "Only organization owners and admins can connect a shared account. "
+                "Connect it for yourself instead."
+            )
         provider = payload.provider
         if provider is IntegrationProvider.GOOGLE:
             raise ValidationError(
@@ -236,10 +314,13 @@ class IntegrationService:
 
         account = await self.probe(provider, credentials)
         integration = Integration(
-            id=provider.value,
+            id=_doc_id(provider, scope, principal.user_id),
             organization_id=org_id,
             provider=provider,
             display_name=payload.label or provider_display_name(provider),
+            scope=scope,
+            owner_id=principal.user_id if scope is IntegrationScope.PERSONAL else None,
+            owner_name=principal.display_name if scope is IntegrationScope.PERSONAL else None,
             status=IntegrationStatus.CONNECTED,
             account=account or payload.account,
             credentials=seal_credentials(credentials),
@@ -253,14 +334,31 @@ class IntegrationService:
     # ---- OAuth ------------------------------------------------------------
 
     async def oauth_start(
-        self, org_id: str, provider: IntegrationProvider, redirect_uri: str
+        self,
+        org_id: str,
+        provider: IntegrationProvider,
+        redirect_uri: str,
+        *,
+        user_id: str,
+        scope: IntegrationScope = IntegrationScope.PERSONAL,
     ) -> OAuthStartResponse:
-        """Build the provider consent URL and the signed state that binds it."""
+        """Build the provider consent URL and the signed state that binds it.
+
+        The client is the workspace's own OAuth app when an admin registered one, and the
+        deployment's app otherwise — either way, the user connects inside the application.
+        """
         if not redirect_uri:
             raise ValidationError("A redirect URL is required to start the connection.")
-        config = require_provider_config(provider, self.settings)
+        config = require_provider_config(
+            provider, self.settings, await self._oauth_client(org_id, provider)
+        )
         state = sign_state(
-            provider, org_id, redirect_uri, self.settings.dev_auth_secret
+            provider,
+            org_id,
+            redirect_uri,
+            self.settings.dev_auth_secret,
+            user_id=user_id,
+            scope=scope.value,
         )
         return OAuthStartResponse(
             authorization_url=build_authorization_url(config, redirect_uri, state),
@@ -286,20 +384,34 @@ class IntegrationService:
         if not code:
             raise ValidationError("That service didn't return an authorization code.")
 
-        config = require_provider_config(provider, self.settings)
+        scope = IntegrationScope(str(claims.get("scope") or IntegrationScope.PERSONAL.value))
+        user_id = str(claims.get("user") or "")
+        if scope is IntegrationScope.PERSONAL and not user_id:
+            raise ValidationError(
+                "This connection request is missing its owner. Please start again."
+            )
+
+        config = require_provider_config(
+            provider, self.settings, await self._oauth_client(org_id, provider)
+        )
         token = await exchange_code(config, code, redirect_uri)
-        credentials = self._credentials_from_token(provider, token)
+        credentials = self._credentials_from_token(provider, token, config)
         account = await self.probe(provider, credentials)
 
+        personal = scope is IntegrationScope.PERSONAL
         integration = Integration(
-            id=provider.value,
+            id=_doc_id(provider, scope, user_id),
             organization_id=org_id,
             provider=provider,
             display_name=provider_display_name(provider),
+            scope=scope,
+            owner_id=user_id if personal else None,
+            owner_name=await self._display_name(user_id) if personal else None,
             status=IntegrationStatus.CONNECTED,
             account=account,
             scopes=_granted_scopes(token, config.scopes),
             credentials=seal_credentials(credentials),
+            created_by=user_id or None,
         )
         stored = await self._save(org_id, integration)
         refreshed = await self._refresh_resources(stored)
@@ -320,8 +432,8 @@ class IntegrationService:
         Resource selection is a UI preference: it narrows what is offered, and
         never widens what the credentials or the permission engine allow.
         """
-        await self._require_admin(org_id, principal)
         integration = await self._require(org_id, integration_id)
+        await self._require_manage(org_id, principal, integration)
         selected = {value for value in payload.resource_ids if value}
         integration.resources = [
             IntegrationResource(
@@ -340,8 +452,8 @@ class IntegrationService:
     async def disconnect(
         self, principal: Principal, org_id: str, integration_id: str
     ) -> None:
-        await self._require_admin(org_id, principal)
         integration = await self._require(org_id, integration_id)
+        await self._require_manage(org_id, principal, integration)
         await self.repo.delete(Paths.integrations(org_id), integration.id)
         await self.audit.record(
             org_id,
@@ -352,15 +464,121 @@ class IntegrationService:
             summary=f"Disconnected {provider_display_name(integration.provider)}.",
             target_type="integration",
             target_id=integration.id,
-            metadata={"provider": integration.provider.value},
+            metadata={
+                "provider": integration.provider.value,
+                "scope": integration.scope.value,
+            },
         )
 
     async def refresh_resources(
         self, principal: Principal, org_id: str, integration_id: str
     ) -> IntegrationPublic:
-        await self._require_admin(org_id, principal)
         integration = await self._require(org_id, integration_id)
+        await self._require_manage(org_id, principal, integration)
         return (await self._refresh_resources(integration)).to_public()
+
+    # ---- workspace OAuth applications -------------------------------------
+    #
+    # A workspace can register its own OAuth app instead of relying on one the deployment
+    # defines. The client secret is encrypted at rest and only ever leaves as a boolean.
+
+    async def oauth_clients(self, org_id: str) -> list[OAuthClientPublic]:
+        """Which OAuth apps are available here, and the redirect URI to register.
+
+        Never returns a secret — only whether one is stored.
+        """
+        statuses: list[OAuthClientPublic] = []
+        for provider in (IntegrationProvider.GITHUB, IntegrationProvider.GOOGLE):
+            callback = self.callback_url(provider)
+            row = await self.repo.get(Paths.oauth_apps(org_id), provider.value)
+            if row is not None:
+                client = self._plain_app(row)
+                client_id = str(client.get("client_id") or "")
+                statuses.append(
+                    OAuthClientPublic(
+                        provider=provider,
+                        configured=bool(client_id and client.get("client_secret")),
+                        client_id=client_id,
+                        masked_client_id=mask_secret(client_id, visible=6),
+                        has_secret=bool(client.get("client_secret")),
+                        source="workspace",
+                        redirect_uri=callback,
+                    )
+                )
+                continue
+            deployment_id, deployment_secret = deployment_client(provider, self.settings)
+            statuses.append(
+                OAuthClientPublic(
+                    provider=provider,
+                    configured=bool(deployment_id and deployment_secret),
+                    client_id=None,
+                    masked_client_id=mask_secret(deployment_id, visible=6) if deployment_id else None,
+                    has_secret=bool(deployment_secret),
+                    source="deployment" if deployment_id and deployment_secret else None,
+                    redirect_uri=callback,
+                )
+            )
+        return statuses
+
+    def callback_url(self, provider: IntegrationProvider) -> str:
+        """The redirect URI to register in the provider's OAuth app."""
+        return (
+            f"{self.settings.oauth_redirect_base_url}"
+            f"/api/v1/integrations/oauth/{provider.value}/callback"
+        )
+
+    async def set_oauth_client(
+        self,
+        principal: Principal,
+        org_id: str,
+        provider: IntegrationProvider,
+        payload: OAuthClientUpdate,
+    ) -> OAuthClientPublic:
+        """Store the workspace's own OAuth app for a provider."""
+        await self._require_admin(org_id, principal)
+        if provider not in (IntegrationProvider.GITHUB, IntegrationProvider.GOOGLE):
+            raise ValidationError(
+                f"{provider_display_name(provider)} connects with a token, not OAuth."
+            )
+        existing = await self.repo.get(Paths.oauth_apps(org_id), provider.value)
+        secret = (payload.client_secret or "").strip()
+        if not secret:
+            secret = str(self._plain_app(existing).get("client_secret") or "") if existing else ""
+        if not secret:
+            raise ValidationError(
+                "Enter the client secret from your OAuth app so Buttlr can complete sign-in."
+            )
+        await self.repo.save(
+            Paths.oauth_apps(org_id),
+            {
+                "id": provider.value,
+                "organization_id": org_id,
+                "provider": provider.value,
+                "client_id": payload.client_id.strip(),
+                "client_secret": seal_credentials({"client_secret": secret})["client_secret"],
+                "created_by": principal.user_id,
+                "updated_at": utcnow(),
+            },
+        )
+        await self.audit.record(
+            org_id,
+            AuditAction.SETTINGS_UPDATED,
+            actor_type=ActorType.USER,
+            actor_id=principal.user_id,
+            actor_name=principal.display_name,
+            summary=f"Set the workspace's own {provider_display_name(provider)} OAuth app.",
+            target_type="oauth_app",
+            target_id=provider.value,
+            metadata={"provider": provider.value},
+        )
+        statuses = await self.oauth_clients(org_id)
+        return next(status for status in statuses if status.provider is provider)
+
+    async def clear_oauth_client(
+        self, principal: Principal, org_id: str, provider: IntegrationProvider
+    ) -> None:
+        await self._require_admin(org_id, principal)
+        await self.repo.delete(Paths.oauth_apps(org_id), provider.value)
 
     # ---- provider probes --------------------------------------------------
 
@@ -511,15 +729,60 @@ class IntegrationService:
             raise NotFoundError("That connection no longer exists.")
         return self._to_model(row)
 
-    async def _require_admin(self, org_id: str, principal: Principal) -> None:
+    async def _require_member(self, org_id: str, principal: Principal) -> OrgRole:
         row = await self.repo.membership(org_id, principal.user_id)
         if row is None:
             raise PermissionDeniedError("You are not a member of this organization.")
-        role = OrgRole(row.get("role") or OrgRole.MEMBER)
+        return OrgRole(row.get("role") or OrgRole.MEMBER)
+
+    async def _require_admin(self, org_id: str, principal: Principal) -> None:
+        role = await self._require_member(org_id, principal)
         if ROLE_RANK.get(role, 0) < ROLE_RANK[OrgRole.ADMIN]:
             raise PermissionDeniedError(
-                "Only organization owners and admins can manage integrations."
+                "Only organization owners and admins can manage the workspace's connections."
             )
+
+    async def _require_manage(
+        self, org_id: str, principal: Principal, integration: Integration
+    ) -> None:
+        """You may manage your own connection; only admins manage the shared ones."""
+        if (
+            integration.scope is IntegrationScope.PERSONAL
+            and integration.owner_id == principal.user_id
+        ):
+            return
+        await self._require_admin(org_id, principal)
+
+    async def _display_name(self, user_id: str) -> str | None:
+        row = await self.repo.get_user(user_id)
+        name = (row or {}).get("display_name")
+        return str(name) if name else None
+
+    async def _oauth_client(
+        self, org_id: str, provider: IntegrationProvider
+    ) -> tuple[str | None, str | None] | None:
+        """The workspace's own OAuth app, or ``None`` to fall back to the deployment's."""
+        row = await self.repo.get(Paths.oauth_apps(org_id), provider.value)
+        if row is None:
+            return None
+        client = self._plain_app(row)
+        client_id = str(client.get("client_id") or "")
+        client_secret = str(client.get("client_secret") or "")
+        if not client_id or not client_secret:
+            return None
+        return (client_id, client_secret)
+
+    @staticmethod
+    def _plain_app(row: dict[str, Any] | None) -> dict[str, Any]:
+        if not row:
+            return {}
+        try:
+            return unseal_credentials(
+                {"client_secret": row.get("client_secret"), "client_id": row.get("client_id")}
+            )
+        except Exception:
+            logger.warning("stored OAuth app credentials could not be decrypted")
+            return {}
 
     def _to_model(self, row: dict[str, Any]) -> Integration:
         return Integration.model_validate(row)
@@ -540,7 +803,10 @@ class IntegrationService:
             ) from exc
 
     def _credentials_from_token(
-        self, provider: IntegrationProvider, token: dict[str, Any]
+        self,
+        provider: IntegrationProvider,
+        token: dict[str, Any],
+        config: Any | None = None,
     ) -> dict[str, Any]:
         access_token = str(token.get("access_token") or "")
         if not access_token:
@@ -555,11 +821,19 @@ class IntegrationService:
         expiry = ""
         if isinstance(expires_in, int | float):
             expiry = (utcnow() + timedelta(seconds=float(expires_in))).isoformat()
+        # The refresh needs the same client that obtained the token: the workspace's own app
+        # when it has one, otherwise the deployment's.
+        client_id = str(getattr(config, "client_id", "") or "") or (
+            self.settings.google_oauth_client_id or ""
+        )
+        client_secret = str(getattr(config, "client_secret", "") or "") or (
+            self.settings.google_oauth_client_secret or ""
+        )
         return {
             "access_token": access_token,
             "refresh_token": str(token.get("refresh_token") or ""),
-            "client_id": self.settings.google_oauth_client_id or "",
-            "client_secret": self.settings.google_oauth_client_secret or "",
+            "client_id": client_id,
+            "client_secret": client_secret,
             "expiry": expiry,
         }
 
@@ -580,10 +854,30 @@ class IntegrationService:
             target_id=integration.id,
             metadata={
                 "provider": integration.provider.value,
+                "scope": integration.scope.value,
                 "account": integration.account,
                 "resources": len(integration.resources),
             },
         )
+
+
+def connection_doc_id(
+    provider: IntegrationProvider, scope: IntegrationScope, user_id: str | None
+) -> str:
+    """Document id for a connection: ``github`` shared, ``github:<user>`` personal."""
+    if scope is IntegrationScope.PERSONAL and user_id:
+        return f"{provider.value}:{user_id}"
+    return provider.value
+
+
+def _doc_id(
+    provider: IntegrationProvider, scope: IntegrationScope, user_id: str | None
+) -> str:
+    return connection_doc_id(provider, scope, user_id)
+
+
+def _usable(integration: Integration) -> bool:
+    return integration.status not in _UNUSABLE_STATUSES and bool(integration.credentials)
 
 
 def _providers_for(buttlr: Buttlr) -> set[IntegrationProvider]:

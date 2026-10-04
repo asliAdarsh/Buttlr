@@ -51,6 +51,7 @@ from app.schemas.enums import (
     ExecutionTrigger,
     GrantSubject,
     IntegrationProvider,
+    IntegrationScope,
     IntegrationStatus,
     ModelProviderKind,
     NotificationKind,
@@ -76,6 +77,8 @@ from app.schemas.integration import (
     IntegrationPublic,
     IntegrationResource,
     IntegrationScopesUpdate,
+    OAuthClientPublic,
+    OAuthClientUpdate,
     OAuthStartResponse,
 )
 from app.schemas.organization import (
@@ -144,6 +147,7 @@ __all__ = [
     "IntegrationProvider",
     "IntegrationPublic",
     "IntegrationResource",
+    "IntegrationScope",
     "IntegrationScopesUpdate",
     "IntegrationStatus",
     "KnowledgeSource",
@@ -156,6 +160,8 @@ __all__ = [
     "ModelUsageBreakdown",
     "Notification",
     "NotificationKind",
+    "OAuthClientPublic",
+    "OAuthClientUpdate",
     "OAuthStartResponse",
     "OrgRole",
     "OrgSummary",

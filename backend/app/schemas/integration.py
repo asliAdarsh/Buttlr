@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import Field
 
 from app.schemas.common import DomainModel, utcnow
-from app.schemas.enums import IntegrationProvider, IntegrationStatus
+from app.schemas.enums import IntegrationProvider, IntegrationScope, IntegrationStatus
 
 
 class IntegrationResource(DomainModel):
@@ -31,6 +31,9 @@ class Integration(DomainModel):
     organization_id: str
     provider: IntegrationProvider
     display_name: str
+    scope: IntegrationScope = IntegrationScope.ORGANIZATION
+    owner_id: str | None = None
+    owner_name: str | None = None
     status: IntegrationStatus = IntegrationStatus.CONNECTED
     account: str | None = None
     scopes: list[str] = Field(default_factory=list)
@@ -48,6 +51,9 @@ class Integration(DomainModel):
             organization_id=self.organization_id,
             provider=self.provider,
             display_name=self.display_name,
+            scope=self.scope,
+            owner_id=self.owner_id,
+            owner_name=self.owner_name,
             status=self.status,
             account=self.account,
             scopes=self.scopes,
@@ -64,6 +70,9 @@ class IntegrationPublic(DomainModel):
     organization_id: str
     provider: IntegrationProvider
     display_name: str
+    scope: IntegrationScope = IntegrationScope.ORGANIZATION
+    owner_id: str | None = None
+    owner_name: str | None = None
     status: IntegrationStatus
     account: str | None = None
     scopes: list[str] = Field(default_factory=list)
@@ -79,10 +88,30 @@ class IntegrationConnectToken(DomainModel):
 
     provider: IntegrationProvider
     token: str = Field(min_length=8)
+    scope: IntegrationScope = IntegrationScope.PERSONAL
     account: str | None = None
     base_url: str | None = None
     email: str | None = None
     label: str | None = None
+
+
+class OAuthClientUpdate(DomainModel):
+    """A workspace's own OAuth application (so no deployment secret is needed)."""
+
+    client_id: str = Field(min_length=8, max_length=200)
+    client_secret: str | None = Field(default=None, max_length=400)
+
+
+class OAuthClientPublic(DomainModel):
+    """Never carries the secret — only whether one is stored."""
+
+    provider: IntegrationProvider
+    configured: bool = False
+    client_id: str | None = None
+    masked_client_id: str | None = None
+    has_secret: bool = False
+    source: str | None = None
+    redirect_uri: str | None = None
 
 
 class IntegrationScopesUpdate(DomainModel):
