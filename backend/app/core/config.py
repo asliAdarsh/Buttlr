@@ -66,6 +66,9 @@ class Settings(BaseSettings):
 
     # ---- runtime -----------------------------------------------------------
     max_agent_steps: int = 12
+    #: How many approvals one execution may request before it stops and reports. A guard
+    #: against a run that keeps asking instead of making progress.
+    max_approvals_per_run: int = 5
     tool_timeout_seconds: float = 60.0
     execution_timeout_seconds: float = 900.0
     execution_workers: int = 4

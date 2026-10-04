@@ -141,8 +141,19 @@ def resolve_approval(
     tool_name: str,
     risk: RiskLevel,
     settings: OrganizationSettings,
+    *,
+    read_only: bool = False,
 ) -> tuple[ApprovalMode, str | None, tuple[str, ...]]:
-    """Return (mode, matched rule, approver roles) for a tool call."""
+    """Return (mode, matched rule, approver roles) for a tool call.
+
+    A read-only tool is never gated, whatever the policy says. Approval exists for actions
+    that change something outside Buttlr; asking before a *read* produces loops (a resumed run
+    re-plans and asks again) and trains people to approve without reading. A rule that names a
+    read-only tool still applies to the write tools it also matches.
+    """
+    if read_only:
+        return ApprovalMode.AUTO, None, ()
+
     for rule in policy.rules:
         if _matches_rule(rule.tool, tool_name):
             return rule.mode, rule.tool, tuple(rule.approver_roles)
@@ -168,6 +179,7 @@ class PermissionEngine:
         required_permission: Permission,
         risk: RiskLevel,
         owner_access: AccessContext | None = None,
+        read_only: bool = False,
     ) -> PermissionDecision:
         granted = granted_permission(buttlr, access)
 
@@ -205,7 +217,7 @@ class PermissionEngine:
             )
 
         mode, matched, approver_roles = resolve_approval(
-            buttlr.approval_policy, tool_name, risk, access.settings
+            buttlr.approval_policy, tool_name, risk, access.settings, read_only=read_only
         )
 
         if mode == ApprovalMode.DENY:

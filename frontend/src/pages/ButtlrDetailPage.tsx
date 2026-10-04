@@ -984,6 +984,7 @@ function ApprovalPolicyEditor({
   saving: boolean;
 }) {
   const patch = (partial: Partial<ApprovalPolicy>) => onChange({ ...policy, ...partial });
+  const tools = useTools();
 
   return (
     <div className="space-y-4">
@@ -1016,46 +1017,62 @@ function ApprovalPolicyEditor({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Per-tool rules</p>
+        <p className="text-xs text-muted-foreground">
+          Read-only tools never need approval — reading changes nothing. A rule may still name
+          one (a pattern like <code className="font-mono">github.*</code> matches reads too); it
+          simply has no effect on them, while it still gates the write tools it matches.
+        </p>
         {policy.rules.length === 0 ? (
           <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
             No per-tool rules. The default behaviour above applies to everything.
           </p>
         ) : (
           <ul className="space-y-2">
-            {policy.rules.map((rule, index) => (
-              <li
-                key={`${rule.tool}-${index}`}
-                className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center"
-              >
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {toolLabel(rule.tool)}
-                </span>
-                <Select
-                  aria-label={`Behaviour for ${toolLabel(rule.tool)}`}
-                  value={rule.mode}
-                  onValueChange={(value) =>
-                    patch({
-                      rules: policy.rules.map((item, i) =>
-                        i === index ? { ...item, mode: value as ApprovalMode } : item,
-                      ),
-                    })
-                  }
-                  options={MODE_OPTIONS}
-                  className="sm:w-52"
-                  disabled={saving}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove rule for ${toolLabel(rule.tool)}`}
-                  disabled={saving}
-                  onClick={() => patch({ rules: policy.rules.filter((_, i) => i !== index) })}
+            {policy.rules.map((rule, index) => {
+              const readOnly = (tools.data?.tools ?? []).find(
+                (tool) => tool.name === rule.tool && tool.read_only,
+              );
+              return (
+                <li
+                  key={`${rule.tool}-${index}`}
+                  className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center"
                 >
-                  <Trash2 aria-hidden="true" />
-                </Button>
-              </li>
-            ))}
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {toolLabel(rule.tool)}
+                  </span>
+                  {readOnly ? (
+                    <span className="text-xs text-muted-foreground sm:w-52">
+                      Read-only — never asks
+                    </span>
+                  ) : (
+                    <Select
+                      aria-label={`Behaviour for ${toolLabel(rule.tool)}`}
+                      value={rule.mode}
+                      onValueChange={(value) =>
+                        patch({
+                          rules: policy.rules.map((item, i) =>
+                            i === index ? { ...item, mode: value as ApprovalMode } : item,
+                          ),
+                        })
+                      }
+                      options={MODE_OPTIONS}
+                      className="sm:w-52"
+                      disabled={saving}
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove rule for ${toolLabel(rule.tool)}`}
+                    disabled={saving}
+                    onClick={() => patch({ rules: policy.rules.filter((_, i) => i !== index) })}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
