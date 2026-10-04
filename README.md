@@ -115,6 +115,39 @@ Pass `{"reset": true}` to rebuild it.
 
 ---
 
+## Authentication and storage
+
+Buttlr runs in one of two authentication modes, chosen by `AUTH_MODE`:
+
+| Mode | Who signs in | Needs |
+| --- | --- | --- |
+| `firebase` | Firebase Authentication (email/password, Google) | `FIREBASE_PROJECT_ID` — nothing else to *verify* tokens |
+| `dev` | Buttlr's own issuer, any email | nothing; offline development and the demo |
+
+The frontend signs in with the Firebase JS SDK using the public web config in
+`frontend/.env.example` (those values are public by design — access is controlled by the
+project's authorised domains and rules, not by hiding them). The backend verifies the resulting
+ID tokens against Google's public certificates, so **no service-account secret is required for
+sign-in**.
+
+Two things do need a service account (`FIREBASE_CREDENTIALS_JSON` or `FIREBASE_CREDENTIALS_PATH`,
+a key from Firebase console → Project settings → Service accounts):
+
+1. **Revocation checks.** Signature, issuer, audience and expiry are always verified. Whether an
+   account was *since deleted or signed out everywhere* is only visible through the Admin API,
+   so keyless mode accepts a still-unexpired token (up to an hour) for a deleted account.
+   Supplying a service account turns revocation checking on automatically.
+2. **Firestore.** The datastore needs an authorised identity. Set `STORE_BACKEND=firestore` once
+   the Firestore database exists and credentials are in place; the API refuses to start
+   otherwise, rather than failing on every request.
+
+To use Firestore: create the database in the Firebase console (Build → Firestore Database →
+Create database), enable the Cloud Firestore API for the project, then give the service the
+**Cloud Datastore User** role and set `STORE_BACKEND=firestore`. Choosing Firestore is
+independent of authentication: turning Firebase Authentication on does not move your data.
+
+---
+
 ## Connections
 
 Everything a Buttlr touches is connected **in the application**, under **Integrations** — never

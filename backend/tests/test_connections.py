@@ -373,7 +373,7 @@ async def test_a_workspace_can_register_its_own_oauth_app(
 
     # The deployment has no OAuth credentials at all: the workspace's app is what makes
     # connecting possible, and the secret never leaves the service.
-    assert container.settings.github_oauth_client_id is None
+    assert not container.settings.github_oauth_client_id
     started = await container.integrations.oauth_start(
         organization.id,
         GITHUB,

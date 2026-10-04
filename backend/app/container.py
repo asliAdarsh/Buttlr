@@ -10,6 +10,7 @@ from app.auth.provider import TokenVerifier, build_verifier
 from app.auth.service import AuthService
 from app.core.config import Settings
 from app.core.config import settings as default_settings
+from app.core.errors import ButtlrError
 from app.core.logging import get_logger
 from app.database.base import Store
 from app.database.factory import build_store
@@ -112,6 +113,17 @@ class Container:
         )
 
     async def startup(self) -> None:
+        self._require_configuration()
+        if self.store.backend == "firestore" and not await self.store.health():
+            raise ButtlrError(
+                "STORE_BACKEND=firestore but Firestore could not be reached. In the Firebase "
+                "console, create the Firestore database (Build → Firestore Database → Create "
+                "database), then give this service a service account: set "
+                "FIREBASE_CREDENTIALS_JSON (the contents of the key file) or "
+                "FIREBASE_CREDENTIALS_PATH. See backend/.env.example.",
+                code="firestore_unreachable",
+                status_code=500,
+            )
         await self.runner.start()
         if self.settings.scheduler_enabled:
             await self.scheduler.start()
@@ -121,6 +133,16 @@ class Container:
             self.settings.auth_mode,
             ",".join(self.models.providers.keys()),
         )
+
+    def _require_configuration(self) -> None:
+        """Refuse to boot in a mode that cannot work, rather than failing per request."""
+        if self.settings.auth_mode == "firebase" and not self.settings.firebase_project_id:
+            raise ButtlrError(
+                "AUTH_MODE=firebase needs FIREBASE_PROJECT_ID (the Firebase project id, e.g. "
+                "buttlr-bot). See backend/.env.example.",
+                code="firebase_misconfigured",
+                status_code=500,
+            )
 
     async def shutdown(self) -> None:
         await self.scheduler.stop()

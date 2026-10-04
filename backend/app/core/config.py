@@ -116,9 +116,18 @@ class Settings(BaseSettings):
 
     @property
     def resolved_store_backend(self) -> Literal["firestore", "memory"]:
+        """``auto`` means Firestore when this service actually holds credentials for it.
+
+        Deliberately *not* keyed off ``firebase_project_id``: that is needed to verify ID
+        tokens, and turning Firebase Authentication on must not drag the datastore with it.
+        Without credentials the memory store is used, and ``STORE_BACKEND=firestore`` is still
+        available for deployments that authenticate through Application Default Credentials.
+        """
         if self.store_backend != "auto":
             return self.store_backend
-        if self.firebase_project_id or self.firestore_emulator_host:
+        if self.firestore_emulator_host:
+            return "firestore"
+        if self.firebase_credentials_json or self.firebase_credentials_path:
             return "firestore"
         return "memory"
 
