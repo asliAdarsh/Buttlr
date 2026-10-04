@@ -108,8 +108,10 @@ npm run dev
 curl -X POST http://localhost:8000/api/v1/dev/seed
 ```
 
-Creates **Acme Technologies**, the Engineering team, a connected GitHub account and the
-`PR Guardian` Buttlr so the whole flow is walkable immediately.
+Creates **Acme Technologies**, the Engineering team and the `PR Guardian` Buttlr. Pass a GitHub
+token in the body (`{"github_token": "github_pat_…"}`) and it also connects GitHub and deploys the
+Buttlr; without one it stays a draft and says so, because Buttlr never pretends a credential works.
+Pass `{"reset": true}` to rebuild it.
 
 ---
 
@@ -124,8 +126,10 @@ All settings come from environment variables (see `backend/.env.example` and
 | `STORE_BACKEND` | `auto` \| `firestore` \| `memory` |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | enable a cloud model provider |
 | `OLLAMA_BASE_URL` | enable a local model provider |
-| `GITHUB_TOKEN` | server-wide GitHub fallback credential |
-| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | enable GitHub OAuth connect flow |
+| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | enable the GitHub OAuth connect flow |
+
+Integration credentials are per organization and encrypted at rest (`ENCRYPTION_KEY`); they are
+never read from the environment and never returned by the API.
 
 When no model credentials are present the runtime uses the built-in **deterministic planner**
 (`heuristic` provider). It is a real rule-based planner — the product works end to end offline,
@@ -144,6 +148,6 @@ cd frontend && npm run build       # type-check + production build
 
 ## Deployment
 
-* `render.yaml` — backend web service + worker, from `dev` (staging) and `main` (production).
+* `render.yaml` — backend web services for staging (`dev`) and production (`main`).
 * `frontend/vercel.json` — SPA rewrites; set `VITE_API_BASE_URL` per environment.
 * `docker-compose.yml` — full stack locally, including an optional Ollama container.

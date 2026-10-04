@@ -1,0 +1,72 @@
+services:
+  - type: web
+    name: buttlr-api-staging
+    runtime: python
+    rootDir: backend
+    plan: starter
+    branch: dev
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: AUTH_MODE
+        sync: false
+      - key: DEV_AUTH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: STORE_BACKEND
+        value: auto
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  - type: web
+    name: buttlr-api-production
+    runtime: python
+    rootDir: backend
+    plan: starter
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_MODE
+        value: firebase
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

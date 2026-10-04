@@ -1,0 +1,59 @@
+# Buttlr — full stack locally.
+#   docker compose up --build
+# Frontend: http://localhost:5173   API: http://localhost:8000/docs
+#
+# Optional local models: uncomment the ollama service and set OLLAMA_BASE_URL to
+# http://ollama:11434 in the api service environment.
+
+services:
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      AUTH_MODE: dev
+      DEV_AUTH_SECRET: buttlr-dev-secret-change-me-in-production
+      STORE_BACKEND: memory
+      MEMORY_STORE_PATH: /data/buttlr-store.json
+      SCHEDULER_ENABLED: "true"
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      LOG_JSON: "false"
+      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - buttlr-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./frontend:/app
+      - web-modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-models:/root/.ollama
+
+volumes:
+  buttlr-data:
+  web-modules:
+  # ollama-models:
