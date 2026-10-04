@@ -7,6 +7,8 @@ admin may additionally connect one shared account for the workspace.
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Query, status
 from fastapi.responses import RedirectResponse
 
@@ -173,13 +175,28 @@ async def refresh_integration(
 async def oauth_callback(
     container: ContainerDep, provider: IntegrationProvider, code: str, state: str
 ) -> RedirectResponse:
+    """Finish a provider redirect.
+
+    The user arrives here in a browser, so a failure has to come back to the application as a
+    readable message — never as a JSON error page.
+    """
+    from app.core.errors import ButtlrError
     from app.integrations.oauth import verify_state
 
-    state_data = verify_state(state, container.settings.dev_auth_secret)
-    organization_id = str(state_data.get("org") or "")
-    integration = await container.integrations.connect_oauth_callback(
-        organization_id, provider, code, state
-    )
+    try:
+        state_data = verify_state(state, container.settings.dev_auth_secret)
+        organization_id = str(state_data.get("org") or "")
+        integration = await container.integrations.connect_oauth_callback(
+            organization_id, provider, code, state
+        )
+    except ButtlrError as exc:
+        logger.warning("oauth callback for %s failed: %s", provider.value, exc.message)
+        target = (
+            f"{container.settings.frontend_url}/integrations"
+            f"?oauth_error={quote(exc.message)}"
+        )
+        return RedirectResponse(target, status_code=status.HTTP_302_FOUND)
+
     target = (
         f"{container.settings.frontend_url}/integrations"
         f"?connected={provider.value}&org={integration.organization_id}"
