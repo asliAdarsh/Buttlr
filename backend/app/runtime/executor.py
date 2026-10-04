@@ -253,6 +253,7 @@ class ButtlrExecutor:
         model_label: str | None = execution.model
         provider_label: str | None = execution.provider
         output: str | None = None
+        degraded: str | None = None
 
         for _ in range(self.settings.max_agent_steps):
             fresh = await self._reload(execution)
@@ -274,6 +275,21 @@ class ButtlrExecutor:
                 plan = await planner.next(request)
             except PlannerError as exc:
                 logger.warning("planner failed, falling back to heuristic: %s", exc)
+                if not degraded:
+                    last_error = planner.last_error if isinstance(planner, LLMPlanner) else None
+                    degraded = str(last_error or exc)
+                    execution = await self.executions.append_step(
+                        execution,
+                        ExecutionStep(
+                            index=len(observations),
+                            type=StepType.STATUS,
+                            title="A configured model did not answer — continuing with the "
+                            "built-in planner",
+                            status=StepStatus.COMPLETED,
+                            detail=degraded[:600],
+                            finished_at=utcnow(),
+                        ),
+                    )
                 planner = HeuristicPlanner()
                 plan = await planner.next(request)
 

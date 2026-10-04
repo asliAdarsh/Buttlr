@@ -108,6 +108,31 @@ def test_connection_listings_never_expose_a_secret(client, container) -> None:
     assert "ghp_owner_token_value" not in response.text
 
 
+def test_a_failed_oauth_callback_returns_to_the_app_not_a_json_page(client, container) -> None:
+    """The user arrives here in a browser: a failure must land back in the UI, readable."""
+    from app.integrations.oauth import sign_state
+    from app.schemas.enums import IntegrationProvider
+
+    owner_token, _, organization_id, _, _ = organization_with_member(client)
+    # A valid, signed state — but for the wrong provider, which is what a stale tab looks like.
+    state = sign_state(
+        IntegrationProvider.GITHUB,
+        organization_id,
+        "http://localhost:8000/api/v1/integrations/oauth/google/callback",
+        container.settings.dev_auth_secret,
+        user_id="someone",
+    )
+    response = client.get(
+        f"/api/v1/integrations/oauth/google/callback?code=abc&state={state}",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302, response.text
+    location = response.headers["location"]
+    assert location.startswith("http://localhost:5173/integrations?oauth_error="), location
+    assert "different%20service" in location
+    assert owner_token  # the member fixture was created and is irrelevant to this path
+
+
 def test_a_workspace_can_register_its_own_oauth_app_over_http(client) -> None:
     owner_token, member_token, organization_id, _, _ = organization_with_member(client)
 

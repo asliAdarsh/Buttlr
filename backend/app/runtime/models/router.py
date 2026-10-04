@@ -36,6 +36,9 @@ class ModelRouter:
     def __init__(self, providers: list[ModelProvider], preference: list[str] | None = None) -> None:
         self._providers: dict[str, ModelProvider] = {p.id: p for p in providers}
         self._preference = preference or list(self._providers)
+        #: Last failure per provider, so a degraded run can say *why* it degraded instead of
+        #: silently changing model. Advisory text only; it never decides behaviour.
+        self.last_failures: dict[str, str] = {}
 
     @property
     def providers(self) -> dict[str, ModelProvider]:
@@ -72,6 +75,7 @@ class ModelRouter:
                 continue
             try:
                 response = await provider.complete(request)
+                self.last_failures.pop(candidate, None)
                 logger.debug(
                     "model completion ok provider=%s model=%s tools=%d",
                     response.provider,
@@ -81,6 +85,7 @@ class ModelRouter:
                 return response
             except Exception as exc:
                 last_error = exc
+                self.last_failures[candidate] = str(exc)
                 logger.warning("provider %s failed: %s", candidate, exc)
                 continue
         if last_error is not None:

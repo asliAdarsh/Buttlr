@@ -22,6 +22,7 @@ from app.runtime.models.base import CompletionRequest, Message, ToolSpec
 from app.runtime.models.router import ModelRouter
 from app.runtime.planner.base import Observation, Plan, Planner, PlannerError, PlanRequest
 from app.schemas.buttlr import ModelConfig
+from app.schemas.enums import ModelProviderKind
 
 logger = get_logger(__name__)
 
@@ -50,10 +51,19 @@ class LLMPlanner(Planner):
     def __init__(self, models: ModelRouter, config: ModelConfig) -> None:
         self._models = models
         self._config = config
+        #: Why the model did not answer, for the run's activity log.
+        self.last_error: str | None = None
 
     @property
     def config(self) -> ModelConfig:
         return self._config
+
+    def _degraded_reason(self) -> str:
+        """The first real provider's failure, if one was recorded."""
+        for provider, message in self._models.last_failures.items():
+            if provider != ModelProviderKind.HEURISTIC.value:
+                return f"{provider}: {message}"
+        return "no model provider answered"
 
     async def next(self, request: PlanRequest) -> Plan:
         if request.step_index >= request.max_steps - 1:
@@ -84,11 +94,21 @@ class LLMPlanner(Planner):
         try:
             response = await self._models.complete(self._config, completion)
         except ModelError as exc:
+            self.last_error = self._degraded_reason()
             raise PlannerError(f"The model could not plan the next step: {exc.message}") from exc
         except TimeoutError as exc:
+            self.last_error = "the model timed out"
             raise PlannerError("The model timed out while planning the next step.") from exc
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            self.last_error = f"the response could not be read: {exc}"
             raise PlannerError(f"The model's response could not be read: {exc}") from exc
+
+        if response.provider == ModelProviderKind.HEURISTIC.value:
+            # The router walked its whole chain and landed on the deterministic provider. That is
+            # not a plan: it is a placeholder, and reporting it as the run's answer would be a
+            # lie. Fall back to the planner that actually sequences tools.
+            self.last_error = self._degraded_reason()
+            raise PlannerError(f"No model answered — {self.last_error}")
 
         usage = response.usage
         provider = response.provider or self._config.provider
