@@ -23,7 +23,7 @@ from app.database.base import Store, new_id
 from app.database.repository import Paths, Repository
 from app.integrations.service import IntegrationService
 from app.runtime.memory import MemoryStoreService
-from app.runtime.models.router import ModelRouter
+from app.runtime.models.registry import ModelRegistry
 from app.runtime.permissions.engine import AccessContext, PermissionEngine
 from app.runtime.planner.base import (
     Observation,
@@ -108,7 +108,7 @@ class ButtlrExecutor:
         settings: Settings,
         store: Store,
         registry: ToolRegistry,
-        models: ModelRouter,
+        models: ModelRegistry,
         permissions: PermissionEngine,
         executions: ExecutionService,
         approvals: ApprovalService,
@@ -230,7 +230,7 @@ class ButtlrExecutor:
         except ButtlrError as exc:
             return await self._fail(job, execution, str(exc.message))
 
-        planner = await self._select_planner(shared.buttlr)
+        planner = await self._select_planner(shared.organization.id, shared.buttlr)
         system_prompt = build_system_prompt(shared.buttlr, specs, is_dry_run=shared.dry_run)
         if shared.buttlr.memory_enabled:
             block = await self.memory.as_prompt_block(shared.organization.id, shared.buttlr.id)
@@ -445,19 +445,21 @@ class ButtlrExecutor:
         first = self.registry.resolve(buttlr.tools)
         return (first[0] if first else None), ctx, specs
 
-    async def _select_planner(self, buttlr: Buttlr) -> Planner:
+    async def _select_planner(self, organization_id: str, buttlr: Buttlr) -> Planner:
         if buttlr.model.provider == ModelProviderKind.HEURISTIC.value:
             return HeuristicPlanner()
         try:
+            router = await self.models.router(organization_id)
             available = [
                 provider
-                for provider in await self.models.available_providers()
+                for provider in await router.available_providers()
                 if provider != ModelProviderKind.HEURISTIC.value
             ]
         except Exception:
+            router = self.models.deployment
             available = []
         if available:
-            return LLMPlanner(self.models, buttlr.model)
+            return LLMPlanner(router, buttlr.model)
         return HeuristicPlanner()
 
     async def _owner_access(

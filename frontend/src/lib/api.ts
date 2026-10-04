@@ -37,6 +37,8 @@ import type {
   MemberUpdate,
   MemberWithUser,
   MetaConfig,
+  ModelProviderEntry,
+  ModelProviderUpdate,
   Notification,
   OAuthClientPublic,
   OAuthClientUpdate,
@@ -356,6 +358,16 @@ export const api = {
   },
   tools: {
     catalogue: () => request<ToolCatalogue>("GET", "/tools"),
+  },
+  models: {
+    list: (orgId: string) =>
+      request<ModelProviderEntry[]>("GET", `/organizations/${orgId}/models`),
+    available: (orgId: string) =>
+      request<ModelProviderEntry[]>("GET", `/organizations/${orgId}/models/available`),
+    set: (orgId: string, provider: string, payload: ModelProviderUpdate) =>
+      request<ModelProviderEntry>("PUT", `/organizations/${orgId}/models/${provider}`, payload),
+    clear: (orgId: string, provider: string) =>
+      request<void>("DELETE", `/organizations/${orgId}/models/${provider}`),
   },
   dev: {
     seed: (payload: SeedRequest = {}) => request<SeedResponse>("POST", "/dev/seed", payload),

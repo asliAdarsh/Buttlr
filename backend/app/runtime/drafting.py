@@ -159,8 +159,10 @@ CAPABILITIES: tuple[_Capability, ...] = (
         write_tools=(GMAIL_SEND_TOOL,),
         mentions=_p(r"\be-?mails?\b", r"\bgmail\b", r"\binbox\b", r"\bmailbox\b", r"\bmessages?\b"),
         writes=_p(
-            r"\b(send|draft|reply|respond|forward)\b[^.]{0,30}\b(e-?mail|message|mail|note|update|me|us|them|reply)\b",
-            r"\bemail\s+(me|us|them|back|the team)\b",
+            # Plural-tolerant on purpose: "draft replies" and "send emails" are how people
+            # actually write it, and a trailing \b after "reply" would refuse to match.
+            r"\b(send|draft|reply|respond|forward|write)\b[^.]{0,40}\b(e-?mails?|messages?|mails?|notes?|updates?|repl(?:y|ies)|me|us|them|back)\b",
+            r"\be-?mail\s+(me|us|them|back|the team)\b",
         ),
         duty="Search the mailbox for the threads that need attention and summarise what matters.",
     ),

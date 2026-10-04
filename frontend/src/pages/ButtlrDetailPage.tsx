@@ -52,7 +52,7 @@ import { ButtlrAvatar } from "@/components/buttlr/ButtlrAvatar";
 import { ApiError } from "@/lib/api";
 import { ScheduleBadge } from "@/components/buttlr/ScheduleBadge";
 import { ExecutionTimeline } from "@/components/buttlr/ExecutionTimeline";
-import { ToolPicker } from "@/components/buttlr/ToolPicker";
+import { ToolPicker, describeApps, resolveToolChoices } from "@/components/buttlr/ToolPicker";
 import { ScopeEditor } from "@/components/buttlr/ScopeEditor";
 import { ModelPicker } from "@/components/buttlr/ModelPicker";
 import { PermissionMatrix } from "@/components/buttlr/PermissionMatrix";
@@ -64,6 +64,7 @@ import {
 } from "@/pages/ButtlrNewPage";
 import { useAuth } from "@/lib/auth";
 import {
+  useAvailableModelProviders,
   useApprovals,
   useButtlr,
   useConversations,
@@ -72,6 +73,7 @@ import {
   useExecution,
   useExecutionStream,
   useExecutions,
+  useIntegrationCatalogue,
   useIntegrations,
   useMembers,
   useMessages,
@@ -613,6 +615,8 @@ function ConfigurationPanel({ buttlrId }: { buttlrId: string }) {
   const buttlr = useButtlr(organizationId, buttlrId);
   const tools = useTools();
   const integrations = useIntegrations(organizationId);
+  const catalogue = useIntegrationCatalogue(organizationId);
+  const availableModels = useAvailableModelProviders(organizationId);
   const teams = useTeams(organizationId);
   const meta = useMeta();
   const updateButtlr = useUpdateButtlr(organizationId ?? "");
@@ -698,6 +702,24 @@ function ConfigurationPanel({ buttlrId }: { buttlrId: string }) {
       ),
     ];
   }, [tools.data]);
+
+  const apps = useMemo(
+    () => describeApps(catalogue.data ?? [], integrations.data ?? []),
+    [catalogue.data, integrations.data],
+  );
+
+  // Only the work a connected app can do is offered. Anything already selected from
+  // an app with no connection stays visible so it can be seen and removed.
+  const { available: availableTools, detached: detachedTools } = useMemo(
+    () => resolveToolChoices(tools.data?.tools ?? [], apps, selectedTools),
+    [tools.data, apps, selectedTools],
+  );
+
+  const appsAreLoading = tools.isLoading || integrations.isLoading || catalogue.isLoading;
+  const modelProviderIds = useMemo(
+    () => (availableModels.data ?? []).map((entry) => entry.provider),
+    [availableModels.data],
+  );
 
   if (buttlr.isLoading) {
     return (
@@ -859,9 +881,15 @@ function ConfigurationPanel({ buttlrId }: { buttlrId: string }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Tools" description="What this Buttlr is allowed to call.">
+      <SectionCard
+        title="Tools"
+        description="Only the apps connected to this workspace are listed. What this Buttlr is allowed to call."
+      >
         <ToolPicker
-          tools={tools.data?.tools ?? []}
+          tools={availableTools}
+          detachedTools={detachedTools}
+          apps={apps}
+          loading={appsAreLoading}
           value={selectedTools}
           onChange={setSelectedTools}
         />
@@ -872,6 +900,8 @@ function ConfigurationPanel({ buttlrId }: { buttlrId: string }) {
           scope={scope}
           onChange={setScope}
           integrations={integrations.data ?? []}
+          apps={apps}
+          loading={appsAreLoading}
         />
       </SectionCard>
 
@@ -883,10 +913,13 @@ function ConfigurationPanel({ buttlrId }: { buttlrId: string }) {
         />
       </SectionCard>
 
-      <SectionCard title="Model" description="Which model reasons for this Buttlr.">
+      <SectionCard
+        title="Model"
+        description="Only providers that can answer right now are listed. Auto uses the organization default."
+      >
         <ModelPicker
           value={form.model}
-          providers={meta.data?.providers ?? []}
+          providers={modelProviderIds}
           onChange={(model) => set({ model })}
         />
       </SectionCard>

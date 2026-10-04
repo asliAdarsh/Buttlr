@@ -24,7 +24,7 @@ from app.database.repository import Paths, Repository
 from app.integrations.service import connection_doc_id
 from app.runtime.drafting import heuristic_draft, heuristic_refine
 from app.runtime.models.base import CompletionRequest, Message
-from app.runtime.models.router import ModelRouter
+from app.runtime.models.registry import ModelRegistry
 from app.runtime.permissions.engine import AccessContext, engine
 from app.runtime.prompt import build_draft_from_plan, build_draft_prompt
 from app.runtime.pubsub import ExecutionBus
@@ -52,6 +52,7 @@ from app.schemas.enums import (
     IntegrationProvider,
     IntegrationScope,
     IntegrationStatus,
+    ModelProviderKind,
     Permission,
 )
 from app.schemas.execution import Execution
@@ -75,7 +76,7 @@ class ButtlrService:
         store: Store,
         audit: AuditService,
         registry: ToolRegistry,
-        models: ModelRouter,
+        models: ModelRegistry,
         runner: ExecutionRunner,
         bus: ExecutionBus,
         settings: Settings,
@@ -419,17 +420,26 @@ class ButtlrService:
         )
 
         try:
-            response = await self.models.complete(
+            router = await self.models.router(organization_id)
+            if await router.available_providers() == [ModelProviderKind.HEURISTIC.value]:
+                # Only the deterministic planner is configured. The explicit fallback below is
+                # better than it: it receives the tool names structurally instead of guessing.
+                raise ModelError("no language model is configured")
+            # No function-calling tools on this call: the catalogue is described in the prompt,
+            # and a provider offered callable tools answers with a tool call rather than the
+            # configuration JSON we asked for.
+            response = await router.complete(
                 ModelConfig(provider="auto"),
                 CompletionRequest(
                     messages=[Message(role="user", content=user)],
                     system=system,
-                    tools=specs,
                     json_mode=True,
                     temperature=_DRAFT_TEMPERATURE,
                     max_tokens=_DRAFT_MAX_TOKENS,
                 ),
             )
+            if response.provider == ModelProviderKind.HEURISTIC.value:
+                raise ValueError("the deterministic planner answered instead of a model")
             plan = _parse_json_object(response.content)
         except (ModelError, ValidationError, ValueError) as exc:
             logger.info("draft fell back to the heuristic builder: %s", exc)
@@ -478,7 +488,11 @@ class ButtlrService:
         # provider cannot apply an instruction to an existing configuration, so it answers
         # in prose and the deterministic refiner below produces the result instead.
         try:
-            response = await self.models.complete(
+            router = await self.models.router(organization_id)
+            available = await router.available_providers()
+            if available == [ModelProviderKind.HEURISTIC.value]:
+                raise ModelError("no language model is configured")
+            response = await router.complete(
                 ModelConfig(provider="auto"),
                 CompletionRequest(
                     messages=[Message(role="user", content=user)],
@@ -488,6 +502,8 @@ class ButtlrService:
                     max_tokens=_DRAFT_MAX_TOKENS,
                 ),
             )
+            if response.provider == ModelProviderKind.HEURISTIC.value:
+                raise ValueError("the deterministic planner answered instead of a model")
             plan = _parse_json_object(response.content)
             resolved = build_draft_from_plan(plan)
             return _response_from_plan(

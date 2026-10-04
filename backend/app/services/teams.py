@@ -42,9 +42,11 @@ class TeamService:
             description=payload.description,
             emoji=payload.emoji,
             color=payload.color,
+            member_ids=list(payload.member_ids),
             created_by=principal.user_id,
         )
-        await self._save(team, payload.member_ids)
+        saved = await self._save(team, payload.member_ids)
+        team = Team.model_validate(saved)
         for user_id in payload.member_ids:
             await self._add_team_to_member(organization_id, user_id, team.id)
         await self.audit.record(
@@ -88,7 +90,11 @@ class TeamService:
         member_ids = changes.pop("member_ids", None)
         updated = current.model_copy(update=changes)
         updated.updated_at = utcnow()
-        await self._save(updated, member_ids)
+        if member_ids is not None:
+            # Keep the returned model honest about the membership that was just written.
+            updated.member_ids = list(dict.fromkeys(member_ids))
+        saved = await self._save(updated, member_ids)
+        updated = Team.model_validate(saved)
 
         if member_ids is not None:
             for user_id in set(previous_ids) - set(member_ids):

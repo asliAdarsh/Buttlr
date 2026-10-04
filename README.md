@@ -115,6 +115,31 @@ Pass `{"reset": true}` to rebuild it.
 
 ---
 
+## Models
+
+A workspace chooses its model **inside the application** — Settings → AI & Models — with no
+environment variable required:
+
+* **Cloud providers** — OpenAI, Anthropic or Google Gemini, each with an API key you paste in.
+* **A local model** — point at an Ollama server (for example `http://localhost:11434`) and keep
+  the work on your own infrastructure.
+* **The built-in planner** — Buttlr's deterministic planner needs no account and no network. It
+  is always available and is the fallback whenever nothing else answers.
+
+Keys are encrypted at rest with `ENCRYPTION_KEY` and never returned by the API — not even to an
+administrator; the UI only shows whether one is saved. Owner or admin manages them. The model
+*name* is editable per provider as well, which matters because providers retire model ids (the
+shipped Gemini default moved to `gemini-3.8-flash` for exactly that reason).
+
+The `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `OLLAMA_BASE_URL` deployment
+settings still work, as the default for workspaces that have not configured their own; a
+workspace's own credentials always take precedence.
+
+Only the providers that can actually answer are offered when creating a Buttlr, so a workspace
+with just Gemini configured is never asked to pick between five models.
+
+---
+
 ## Authentication and storage
 
 Buttlr runs in one of two authentication modes, chosen by `AUTH_MODE`:
@@ -179,9 +204,9 @@ All settings come from environment variables (see `backend/.env.example` and
 | --- | --- |
 | `AUTH_MODE` | `dev` (self-issued JWTs) or `firebase` (verify Firebase ID tokens) |
 | `STORE_BACKEND` | `auto` \| `firestore` \| `memory` |
-| `ENCRYPTION_KEY` | at-rest encryption for connection credentials |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | enable a cloud model provider |
-| `OLLAMA_BASE_URL` | enable a local model provider |
+| `ENCRYPTION_KEY` | at-rest encryption for connection and model credentials |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | default cloud model providers (a workspace can set its own in the app) |
+| `OLLAMA_BASE_URL` | default local model endpoint |
 | `GITHUB_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_ID` | optional deployment-wide OAuth apps |
 
 No provider credential — GitHub token, Jira API token, Google refresh token — is ever read from
