@@ -48,7 +48,9 @@ Show refinement in natural language: *"only monitor acme/backend"*, *"run at 8 A
 * Schedule: every day at 09:00, with the timezone.
 * Permissions: the Engineering team may **ask**; the Engineering Lead may **approve**; the owner
   has **admin**.
-* Approval: `github.create_issue` requires approval.
+* Model: only the providers this workspace has configured (Settings → AI & Models); with none
+  configured, the built-in planner runs it and nothing leaves the deployment.
+* Approval: `github.create_issue` requires approval, so the run pauses for the Engineering Lead.
 
 ## 4. Connect GitHub
 

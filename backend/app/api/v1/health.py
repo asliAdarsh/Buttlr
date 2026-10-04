@@ -42,7 +42,9 @@ class MetaConfig(BaseModel):
 @router.get("/meta/config", response_model=MetaConfig)
 async def meta_config(container: ContainerDep) -> MetaConfig:
     try:
-        providers = await container.models.available_providers()
+        # The deployment's own configuration. Each workspace may add its own keys on top —
+        # GET /organizations/{id}/models is the per-workspace answer.
+        providers = await container.models.deployment.available_providers()
     except Exception:
         providers = ["heuristic"]
     return MetaConfig(

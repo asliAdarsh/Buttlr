@@ -226,6 +226,68 @@ def test_natural_language_builder_produces_a_usable_configuration(client) -> Non
     assert rules.get("github.create_issue") == "ask"
 
 
+def test_a_team_remembers_its_members(client) -> None:
+    """The team the user just built must come back with its people, not an empty list."""
+    owner = client.post("/api/v1/auth/dev/login", json={"email": "team@example.com"}).json()
+    token = owner["access_token"]
+    owner_id = owner["user"]["id"]
+    organization = create_org(client, token, "Team Members Corp")
+
+    invited = client.post(
+        f"/api/v1/organizations/{organization['id']}/members",
+        json={"email": "teammate@example.com", "role": "member"},
+        headers=auth(token),
+    )
+    teammate_id = invited.json()["user_id"]
+
+    created = client.post(
+        f"/api/v1/organizations/{organization['id']}/teams",
+        json={"name": "Engineering", "member_ids": [owner_id, teammate_id]},
+        headers=auth(token),
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["member_ids"] == [owner_id, teammate_id]
+
+    listed = client.get(
+        f"/api/v1/organizations/{organization['id']}/teams", headers=auth(token)
+    ).json()
+    assert listed[0]["member_ids"] == [owner_id, teammate_id]
+
+    members = client.get(
+        f"/api/v1/organizations/{organization['id']}/teams/{created.json()['id']}/members",
+        headers=auth(token),
+    )
+    assert members.status_code == 200
+    assert {member["user_id"] for member in members.json()} == {owner_id, teammate_id}
+    assert all(member["user"] for member in members.json()), "names must resolve, not just ids"
+
+    # Removing someone updates both the team document and their own membership.
+    patched = client.patch(
+        f"/api/v1/organizations/{organization['id']}/teams/{created.json()['id']}",
+        json={"member_ids": [owner_id]},
+        headers=auth(token),
+    )
+    assert patched.status_code == 200
+    assert patched.json()["member_ids"] == [owner_id]
+    after = client.get(
+        f"/api/v1/organizations/{organization['id']}/teams/{created.json()['id']}/members",
+        headers=auth(token),
+    ).json()
+    assert [member["user_id"] for member in after] == [owner_id]
+
+
+def test_a_team_rejects_people_who_are_not_members(client) -> None:
+    owner = client.post("/api/v1/auth/dev/login", json={"email": "team2@example.com"}).json()
+    token = owner["access_token"]
+    organization = create_org(client, token, "Team Guard Corp")
+    response = client.post(
+        f"/api/v1/organizations/{organization['id']}/teams",
+        json={"name": "Ghosts", "member_ids": ["someone-who-is-not-here"]},
+        headers=auth(token),
+    )
+    assert response.status_code == 409
+
+
 def test_audit_log_records_organization_and_buttlr_actions(client) -> None:
     owner = client.post("/api/v1/auth/dev/login", json={"email": "owner8@example.com"}).json()
     token = owner["access_token"]

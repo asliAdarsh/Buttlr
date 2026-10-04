@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  Bot,
   Building2,
   Check,
   Code2,
@@ -34,6 +33,9 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/Field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
 import { StatusPill } from "@/components/common/StatusPill";
@@ -42,16 +44,25 @@ import { useTheme, type Density, type ThemeMode } from "@/lib/theme";
 import { ACCENTS } from "@/lib/constants";
 import { api } from "@/lib/api";
 import {
+  useClearModelProvider,
+  useModelProviders,
   useIntegrationCatalogue,
   useIntegrations,
   useMembers,
   useMeta,
   useOrganization,
   useUpdateMe,
+  useSetModelProvider,
   useUpdateOrganization,
 } from "@/lib/queries";
 import { formatDate, formatRelative } from "@/lib/format";
-import type { Organization, OrganizationSettings, UserPreferences } from "@/lib/types";
+import type {
+  ModelProviderEntry,
+  ModelProviderUpdate,
+  Organization,
+  OrganizationSettings,
+  UserPreferences,
+} from "@/lib/types";
 
 const CATEGORIES = [
   { id: "account", label: "Account", icon: UserRound },
@@ -109,40 +120,6 @@ const NOTIFICATION_FLAGS: { key: keyof UserPreferences; label: string; descripti
   },
 ];
 
-const PROVIDER_INFO: { id: string; label: string; env: string; description: string }[] = [
-  {
-    id: "openai",
-    label: "OpenAI",
-    env: "OPENAI_API_KEY",
-    description: "Chat completions through the official OpenAI API.",
-  },
-  {
-    id: "anthropic",
-    label: "Anthropic",
-    env: "ANTHROPIC_API_KEY",
-    description: "Claude models through the Anthropic API.",
-  },
-  {
-    id: "google",
-    label: "Google",
-    env: "GOOGLE_API_KEY",
-    description: "Gemini models through Google's generative language endpoint.",
-  },
-  {
-    id: "ollama",
-    label: "Ollama (local)",
-    env: "OLLAMA_BASE_URL",
-    description:
-      "A model running on your own machines. Usable only while the organization allows local models.",
-  },
-  {
-    id: "heuristic",
-    label: "Built-in (deterministic)",
-    env: "",
-    description:
-      "Always available. It plans without a network call, so Buttlr stays usable with no provider credentials at all.",
-  },
-];
 
 const LOGO_EMOJIS = ["🏢", "🚀", "🧪", "🛠️", "📊", "🎯", "🌱", "🧭", "⚙️", "🗂️"];
 
@@ -728,48 +705,240 @@ function OrganizationSection() {
   );
 }
 
-function ModelsSection() {
+const KIND_BADGE: Record<string, { label: string; tone: "primary" | "warning" | "outline" | "muted" }> = {
+  cloud: { label: "Cloud", tone: "primary" },
+  local: { label: "Local", tone: "warning" },
+  builtin: { label: "Built-in", tone: "outline" },
+};
+
+function statusLine(entry: ModelProviderEntry): string {
+  if (entry.source === "workspace") return "Set by this workspace";
+  if (entry.source === "deployment") return "Set for this deployment";
+  return "Not configured";
+}
+
+function ProviderCard({ entry, canManage }: { entry: ModelProviderEntry; canManage: boolean }) {
+  const kind = KIND_BADGE[entry.kind] ?? { label: entry.kind, tone: "muted" };
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
   const { activeOrganizationId } = useAuth();
-  const meta = useMeta();
-  const organization = useOrganization(activeOrganizationId);
-  const available = new Set(meta.data?.providers ?? []);
+  const orgId = activeOrganizationId ?? "";
+  const save = useSetModelProvider(orgId);
+  const clear = useClearModelProvider(orgId);
+
+  const editable = entry.provider !== "heuristic";
+  const showEndpoint = entry.requires_base_url || entry.provider === "openai";
+  const endpointPlaceholder =
+    entry.provider === "ollama" ? "http://localhost:11434" : "https://your-gateway/v1";
+  const canRemove = editable && entry.configured && entry.source === "workspace";
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const payload: ModelProviderUpdate = {};
+    if (entry.requires_key && apiKey.trim()) payload.api_key = apiKey.trim();
+    if (showEndpoint && baseUrl.trim()) payload.base_url = baseUrl.trim();
+    if (model.trim()) payload.model = model.trim();
+
+    try {
+      await save.mutateAsync({ provider: entry.provider, payload });
+      setApiKey("");
+      setBaseUrl("");
+      setModel("");
+      toast.success(`${entry.name} saved.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : `${entry.name} could not be saved.`,
+      );
+    }
+  };
+
+  const remove = async () => {
+    try {
+      await clear.mutateAsync(entry.provider);
+      toast.success(`${entry.name} removed.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : `${entry.name} could not be removed.`,
+      );
+    }
+  };
 
   return (
-    <SectionCard
-      title="AI & Models"
-      description="Which providers this deployment can reach. Credentials live in the server environment, not in your browser."
-    >
-      <ul className="space-y-3">
-        {PROVIDER_INFO.map((provider) => {
-          const enabled = available.has(provider.id);
-          return (
-            <li key={provider.id} className="rounded-md border border-border p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Bot aria-hidden="true" className="size-4 text-muted-foreground" />
-                <p className="text-sm font-medium">{provider.label}</p>
-                {enabled ? (
-                  <Badge tone="success">
-                    <Check aria-hidden="true" />
-                    Available
-                  </Badge>
-                ) : (
-                  <Badge tone="muted">
-                    <Info aria-hidden="true" />
-                    Not configured
-                  </Badge>
-                )}
-              </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">{provider.description}</p>
-              {!enabled && provider.env ? (
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Set <code className="font-mono text-foreground">{provider.env}</code> in the server
-                  environment and restart the API to enable it.
-                </p>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+    <li className="rounded-md border border-border p-3 sm:p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Cpu aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        <p className="text-sm font-medium">{entry.name}</p>
+        <Badge tone={kind.tone}>{kind.label}</Badge>
+      </div>
+
+      <p className="mt-1.5 text-xs text-muted-foreground">{entry.description}</p>
+
+      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span className={entry.configured ? "font-medium text-success" : "text-muted-foreground"}>
+          {statusLine(entry)}
+        </span>
+        {entry.model ? <span className="font-mono text-muted-foreground">· {entry.model}</span> : null}
+        {entry.base_url ? (
+          <span className="break-all font-mono text-muted-foreground">· {entry.base_url}</span>
+        ) : null}
+        {entry.requires_key && entry.configured ? (
+          <span className="text-muted-foreground">· API key saved</span>
+        ) : null}
+      </p>
+
+      {entry.note ? <p className="mt-2 text-xs text-muted-foreground">{entry.note}</p> : null}
+
+      {canManage && editable ? (
+        <form className="mt-4 space-y-4 border-t border-border pt-4" onSubmit={submit}>
+          {entry.requires_key ? (
+            <Field
+              label="API key"
+              htmlFor={`model-${entry.provider}-key`}
+              hint="Leave blank to keep the saved key."
+            >
+              <Input
+                id={`model-${entry.provider}-key`}
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                placeholder="Paste the key"
+                onChange={(event) => setApiKey(event.target.value)}
+              />
+            </Field>
+          ) : null}
+
+          {showEndpoint ? (
+            <Field
+              label={entry.requires_base_url ? "Endpoint" : "Endpoint (optional)"}
+              htmlFor={`model-${entry.provider}-base-url`}
+              hint={
+                entry.requires_base_url
+                  ? "Where the model server is listening."
+                  : "Optional: override the default address if you use an OpenAI-compatible gateway."
+              }
+            >
+              <Input
+                id={`model-${entry.provider}-base-url`}
+                type="url"
+                inputMode="url"
+                value={baseUrl}
+                placeholder={entry.base_url ?? endpointPlaceholder}
+                onChange={(event) => setBaseUrl(event.target.value)}
+              />
+            </Field>
+          ) : null}
+
+          <Field
+            label="Model"
+            htmlFor={`model-${entry.provider}-model`}
+            hint="This is the model your Buttlrs will call."
+          >
+            <Input
+              id={`model-${entry.provider}-model`}
+              value={model}
+              placeholder={entry.model ?? "Model name"}
+              onChange={(event) => setModel(event.target.value)}
+            />
+          </Field>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" size="sm" loading={save.isPending}>
+              Save
+            </Button>
+            {canRemove ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setConfirming(true)}>
+                Remove
+              </Button>
+            ) : null}
+            {entry.docs_url ? (
+              <a
+                href={entry.docs_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Get a key
+              </a>
+            ) : null}
+          </div>
+
+          <ConfirmDialog
+            open={confirming}
+            onOpenChange={setConfirming}
+            title={`Remove ${entry.name}?`}
+            description="Buttlrs fall back to the deployment's configuration, or to the built-in planner if there is none."
+            confirmLabel="Remove"
+            destructive
+            loading={clear.isPending}
+            onConfirm={remove}
+          />
+        </form>
+      ) : null}
+
+      {canManage && !editable ? (
+        <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+          The built-in planner needs no credentials and cannot be changed. It is always available, so a Buttlr
+          keeps working when no other provider is set.
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
+function ModelsSection() {
+  const { activeOrganizationId, user } = useAuth();
+  const members = useMembers(activeOrganizationId);
+  const providers = useModelProviders(activeOrganizationId);
+  const organization = useOrganization(activeOrganizationId);
+
+  const role = (members.data ?? []).find((member) => member.user_id === user?.id)?.role;
+  const canManage = role === "owner" || role === "admin";
+  const entries = providers.data ?? [];
+
+  return (
+    <SectionCard title="AI & Models" description="The models your Buttlrs can work with.">
+      <p className="text-sm text-muted-foreground">
+        Give Buttlrs a cloud provider key, or point them at a model server on your own infrastructure so your
+        data never leaves it. The built-in planner is always available as the fallback, so a Buttlr still works
+        with no provider set at all.
+      </p>
+
+      {!canManage ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Only owners and admins can change these. You are seeing what this organization uses today.
+        </p>
+      ) : null}
+
+      <div className="mt-4">
+        {providers.isPending ? (
+          <ul className="space-y-3">
+            {[0, 1, 2].map((row) => (
+              <li key={row}>
+                <Skeleton className="h-24 w-full" />
+              </li>
+            ))}
+          </ul>
+        ) : providers.isError ? (
+          <ErrorState
+            error={providers.error}
+            title="Providers could not be loaded"
+            onRetry={() => void providers.refetch()}
+          />
+        ) : (
+          <ul className="space-y-3">
+            {entries.map((entry) => (
+              <ProviderCard key={entry.provider} entry={entry} canManage={canManage} />
+            ))}
+          </ul>
+        )}
+      </div>
 
       <Separator className="my-4" />
 
@@ -788,7 +957,7 @@ function ModelsSection() {
         <Link to="/settings?tab=organization" className="font-medium text-primary hover:underline">
           Organization
         </Link>
-        . Provider credentials can only be set on the server.
+        . Saved keys are encrypted and never shown again.
       </p>
     </SectionCard>
   );

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -6,6 +7,20 @@ import type { ModelConfig } from "@/lib/types";
 
 const AUTO = "auto";
 
+/**
+ * The built-in planner needs no account and never stops answering, so it is the
+ * one provider a builder can always fall back to.
+ */
+const BUILT_IN = "heuristic";
+
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google Gemini",
+  ollama: "Local model (Ollama)",
+  heuristic: "Built-in planner",
+};
+
 export function ModelPicker({
   value,
   onChange,
@@ -13,10 +28,28 @@ export function ModelPicker({
 }: {
   value: ModelConfig;
   onChange: (next: ModelConfig) => void;
+  /** Provider ids that can answer right now, from `useAvailableModelProviders`. */
   providers: string[];
 }) {
   const patch = (partial: Partial<ModelConfig>) => onChange({ ...value, ...partial });
   const specific = value.provider !== AUTO && value.provider !== "";
+
+  // An empty list means "still loading" or "nothing configured" — never an empty
+  // select, because the built-in planner is always there.
+  const available = providers.length > 0 ? providers : [BUILT_IN];
+
+  // A saved provider that is no longer configured stays on screen: the user has to
+  // see it to understand why the Buttlr behaves differently, and to change it.
+  const unavailable = specific && !available.includes(value.provider) ? value.provider : null;
+
+  const options = [
+    { value: AUTO, label: "Auto (organization default)", hint: "recommended" },
+    ...(unavailable ? [{ value: unavailable, label: providerLabel(unavailable) }] : []),
+    ...available.map((provider) => ({
+      value: provider,
+      label: PROVIDER_NAMES[provider] ?? providerLabel(provider),
+    })),
+  ];
 
   return (
     <div className="space-y-4">
@@ -32,14 +65,19 @@ export function ModelPicker({
               name: provider === AUTO ? value.name : "",
             })
           }
-          options={[
-            { value: AUTO, label: "Auto (organization default)", hint: "recommended" },
-            ...providers.map((provider) => ({
-              value: provider,
-              label: providerLabel(provider),
-            })),
-          ]}
+          options={options}
         />
+        {unavailable ? (
+          <p className="text-xs text-muted-foreground">
+            {PROVIDER_NAMES[value.provider] ?? providerLabel(value.provider)} is no longer
+            available in this workspace, so it is kept as the current value but cannot answer until
+            it is set up again under{" "}
+            <Link to="/settings?tab=models" className="font-medium text-primary hover:underline">
+              AI &amp; Models
+            </Link>
+            .
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1.5">

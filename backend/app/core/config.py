@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     anthropic_default_model: str = "claude-3-5-sonnet-latest"
     google_api_key: str | None = None
     google_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    google_default_model: str = "gemini-2.0-flash"
+    google_default_model: str = "gemini-3.8-flash"
     ollama_base_url: str | None = None
     ollama_default_model: str = "qwen2.5:7b"
     estimated_cost_per_1k_input: float = 0.0

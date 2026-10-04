@@ -24,6 +24,7 @@ import type {
   IntegrationScopesUpdate,
   MemberInvite,
   MemberUpdate,
+  ModelProviderUpdate,
   OAuthClientUpdate,
   OrganizationCreate,
   OrganizationUpdate,
@@ -57,6 +58,8 @@ export const keys = {
   integrations: (id: string) => ["organization", id, "integrations"] as const,
   catalogue: (id: string) => ["organization", id, "integrations", "catalogue"] as const,
   oauthClients: (id: string) => ["organization", id, "integrations", "oauth-clients"] as const,
+  modelProviders: (id: string) => ["organization", id, "models"] as const,
+  availableModelProviders: (id: string) => ["organization", id, "models", "available"] as const,
   audit: (id: string, filters?: Record<string, unknown>) =>
     ["organization", id, "audit", filters ?? {}] as const,
   notifications: (id: string, filters?: Record<string, unknown>) =>
@@ -176,6 +179,22 @@ export const useOauthClients = (organizationId: string | null) =>
   useQuery({
     queryKey: keys.oauthClients(organizationId ?? "none"),
     queryFn: () => api.integrations.oauthClients(organizationId as string),
+    enabled: Boolean(organizationId),
+  });
+
+/** Every provider the workspace may choose, with where its credentials come from. */
+export const useModelProviders = (organizationId: string | null) =>
+  useQuery({
+    queryKey: keys.modelProviders(organizationId ?? "none"),
+    queryFn: () => api.models.list(organizationId as string),
+    enabled: Boolean(organizationId),
+  });
+
+/** Only the providers that can answer right now — what the Buttlr builder should offer. */
+export const useAvailableModelProviders = (organizationId: string | null) =>
+  useQuery({
+    queryKey: keys.availableModelProviders(organizationId ?? "none"),
+    queryFn: () => api.models.available(organizationId as string),
     enabled: Boolean(organizationId),
   });
 
@@ -450,6 +469,29 @@ export function useClearOauthClient(organizationId: string) {
     mutationFn: (provider: string) => api.integrations.clearOauthClient(organizationId, provider),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: keys.oauthClients(organizationId) });
+    },
+  });
+}
+
+export function useSetModelProvider(organizationId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ provider, payload }: { provider: string; payload: ModelProviderUpdate }) =>
+      api.models.set(organizationId, provider, payload),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.modelProviders(organizationId) });
+      void client.invalidateQueries({ queryKey: keys.availableModelProviders(organizationId) });
+    },
+  });
+}
+
+export function useClearModelProvider(organizationId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: string) => api.models.clear(organizationId, provider),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.modelProviders(organizationId) });
+      void client.invalidateQueries({ queryKey: keys.availableModelProviders(organizationId) });
     },
   });
 }

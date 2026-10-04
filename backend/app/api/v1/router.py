@@ -14,6 +14,7 @@ from app.api.v1 import (
     executions,
     health,
     integrations,
+    models,
     organizations,
     teams,
     tools,
@@ -33,6 +34,7 @@ api_router.include_router(integrations.callback_router)
 api_router.include_router(activity.router)
 api_router.include_router(analytics.router)
 api_router.include_router(tools.router)
+api_router.include_router(models.router)
 api_router.include_router(dev.router)
 
 __all__ = ["api_router"]

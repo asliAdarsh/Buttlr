@@ -81,6 +81,7 @@ from app.schemas.integration import (
     OAuthClientUpdate,
     OAuthStartResponse,
 )
+from app.schemas.models import ModelProviderEntry, ModelProviderUpdate
 from app.schemas.organization import (
     Member,
     MemberInvite,
@@ -156,7 +157,9 @@ __all__ = [
     "MemberUpdate",
     "MemberWithUser",
     "ModelConfig",
+    "ModelProviderEntry",
     "ModelProviderKind",
+    "ModelProviderUpdate",
     "ModelUsageBreakdown",
     "Notification",
     "NotificationKind",

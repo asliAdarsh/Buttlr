@@ -294,7 +294,9 @@ async def test_the_runtime_hands_the_run_the_accessing_persons_credentials(
 
     for principal, role in ((bob, OrgRole.MEMBER), (alice, OrgRole.OWNER)):
         planner = OneShotPlanner()
-        container.executor._select_planner = lambda _buttlr, p=planner: _resolved(p)  # type: ignore[assignment]
+        container.executor._select_planner = (  # type: ignore[assignment]
+            lambda _organization_id, _buttlr, p=planner: _resolved(p)
+        )
         execution = await container.executions.create(
             organization.id, buttlr, ExecutionTrigger.MANUAL, "Which account?", requested_by=principal.user_id
         )

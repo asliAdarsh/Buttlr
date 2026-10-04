@@ -109,6 +109,8 @@ class Team(DomainModel):
     description: str | None = None
     emoji: str = "🛠️"
     color: str = "violet"
+    #: Team membership, in the order people were added. Stored on the team document.
+    member_ids: list[str] = Field(default_factory=list)
     created_by: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

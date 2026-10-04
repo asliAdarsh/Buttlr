@@ -114,7 +114,9 @@ async def build_world(
 
 def scripted(container: Container, plans: list[Plan]) -> ScriptedPlanner:
     planner = ScriptedPlanner(plans)
-    container.executor._select_planner = lambda buttlr: _resolved(planner)  # type: ignore[assignment]
+    container.executor._select_planner = (  # type: ignore[assignment]
+        lambda _organization_id, _buttlr, p=planner: _resolved(p)
+    )
     return planner
 
 
