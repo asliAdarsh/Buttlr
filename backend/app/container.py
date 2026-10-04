@@ -6,25 +6,28 @@ as constructor arguments, so they stay testable and nothing reaches for a global
 
 from __future__ import annotations
 
-from app.core.config import Settings, settings as default_settings
+from app.auth.provider import TokenVerifier, build_verifier
+from app.auth.service import AuthService
+from app.core.config import Settings
+from app.core.config import settings as default_settings
 from app.core.logging import get_logger
 from app.database.base import Store
 from app.database.factory import build_store
 from app.database.repository import Repository
-from app.auth.provider import TokenVerifier, build_verifier
-from app.auth.service import AuthService
 from app.integrations.service import IntegrationService
 from app.runtime.executor import ButtlrExecutor
 from app.runtime.models.providers import build_providers
 from app.runtime.models.router import ModelRouter
 from app.runtime.permissions.engine import engine as permission_engine
-from app.runtime.pubsub import ExecutionBus, bus as default_bus
+from app.runtime.pubsub import ExecutionBus
+from app.runtime.pubsub import bus as default_bus
 from app.runtime.tools import build_registry
 from app.scheduler.service import SchedulerService
 from app.services.analytics import AnalyticsService
 from app.services.approvals import ApprovalService
 from app.services.audit import AuditService
 from app.services.buttlrs import ButtlrService
+from app.services.chat import ChatService
 from app.services.executions import ExecutionService
 from app.services.notifications import NotificationService
 from app.services.organizations import OrganizationService
@@ -68,6 +71,7 @@ class Container:
         # runtime orchestration
         self.executor = ButtlrExecutor(
             settings=self.settings,
+            store=self.store,
             registry=self.registry,
             models=self.models,
             permissions=self.permissions,
@@ -90,6 +94,14 @@ class Container:
             settings=self.settings,
         )
         self.analytics = AnalyticsService(self.store)
+        self.chat = ChatService(
+            store=self.store,
+            runner=self.runner,
+            executions=self.executions,
+            buttlrs=self.buttlrs,
+            settings=self.settings,
+            audit=self.audit,
+        )
 
         # scheduling
         self.scheduler = SchedulerService(

@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # ---- auth --------------------------------------------------------------
     auth_mode: AuthMode = "dev"
-    dev_auth_secret: str = "buttlr-dev-secret-change-me"
+    dev_auth_secret: str = "buttlr-dev-secret-change-me-in-production"
     dev_auth_ttl_hours: int = 24 * 7
     firebase_project_id: str | None = None
     firebase_credentials_path: str | None = None

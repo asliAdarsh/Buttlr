@@ -79,7 +79,7 @@ class ModelRouter:
                     len(response.tool_calls),
                 )
                 return response
-            except Exception as exc:  # noqa: BLE001 - fall through the chain deliberately
+            except Exception as exc:
                 last_error = exc
                 logger.warning("provider %s failed: %s", candidate, exc)
                 continue

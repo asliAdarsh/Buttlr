@@ -94,7 +94,7 @@ class FirebaseTokenVerifier:
         import firebase_admin
         from firebase_admin import credentials
 
-        if not firebase_admin._apps:  # noqa: SLF001 - documented public-ish check
+        if not firebase_admin._apps:
             if self._settings.firebase_credentials_json:
                 import json
 
@@ -115,7 +115,7 @@ class FirebaseTokenVerifier:
         self._ensure_initialised()
         try:
             decoded = fb_auth.verify_id_token(token, check_revoked=False)
-        except Exception as exc:  # noqa: BLE001 - SDK raises many types
+        except Exception as exc:
             logger.warning("firebase token rejected: %s", exc)
             raise UnauthenticatedError("Your session expired. Sign in again.") from exc
         return VerifiedIdentity(

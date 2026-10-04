@@ -12,6 +12,7 @@ from typing import Any
 from app.runtime.models.base import ToolSpec
 from app.schemas.buttlr import Buttlr, ButtlrCreate
 from app.schemas.enums import ApprovalMode, RiskLevel
+from app.schemas.integration import canonical_providers
 
 SCOPE_LABELS: dict[str, str] = {
     "repositories": "repositories",
@@ -226,6 +227,7 @@ def build_draft_from_plan(plan: dict[str, Any]) -> ButtlrCreate:
     policy = plan.get("approval_policy") or {}
     policy.setdefault("default_mode", ApprovalMode.AUTO.value)
     policy.setdefault("require_for_risk", RiskLevel.HIGH.value)
+    tools = [str(t) for t in (plan.get("tools") or [])]
     payload = {
         "name": (plan.get("name") or "New Buttlr").strip()[:80],
         "avatar": plan.get("avatar") or "🤖",
@@ -235,8 +237,10 @@ def build_draft_from_plan(plan: dict[str, Any]) -> ButtlrCreate:
         "objective": plan.get("objective") or plan.get("description") or "",
         "responsibilities": [str(r) for r in (plan.get("responsibilities") or [])][:8],
         "instructions": plan.get("instructions") or "",
-        "tools": [str(t) for t in (plan.get("tools") or [])],
-        "integrations": [str(i) for i in (plan.get("integrations") or [])],
+        "tools": tools,
+        # Integrations are connection names, not tool prefixes: "gmail" becomes "google", so
+        # the deploy gate and the credential lookup agree with the tool catalogue.
+        "integrations": canonical_providers(tools, plan.get("integrations") or []),
         "scope": plan.get("scope") or {},
         "schedule": schedule,
         "approval_policy": policy,
