@@ -12,6 +12,11 @@ export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
+/**
+ * Label, control, then the hint underneath. When `htmlFor` is given, the hint
+ * and error ids are attached to the control itself so a screen reader announces
+ * them with the field rather than as loose text.
+ */
 export function Field({
   label,
   hint,
@@ -22,30 +27,42 @@ export function Field({
   className,
   ...props
 }: FieldProps) {
-  const describedBy = [htmlFor ? `${htmlFor}-hint` : undefined, htmlFor ? `${htmlFor}-error` : undefined]
+  const hintId = htmlFor ? `${htmlFor}-hint` : undefined;
+  const errorId = htmlFor ? `${htmlFor}-error` : undefined;
+  const describedBy = [error ? errorId : undefined, hint ? hintId : undefined]
     .filter(Boolean)
     .join(" ")
     .trim();
 
+  const control =
+    React.isValidElement(children) && describedBy
+      ? React.cloneElement(children as React.ReactElement<{ "aria-describedby"?: string }>, {
+          "aria-describedby": describedBy,
+        })
+      : children;
+
   return (
-    <div className={cn("space-y-1.5", className)} {...props}>
+    <div className={cn("space-y-2", className)} {...props}>
       <Label htmlFor={htmlFor}>
         {label}
         {required ? (
-          <span className="ml-0.5 text-destructive" aria-hidden="true">
-            *
-          </span>
+          <>
+            <span className="ml-0.5 text-destructive" aria-hidden="true">
+              *
+            </span>
+            <span className="sr-only"> (required)</span>
+          </>
         ) : null}
       </Label>
-      {hint ? (
-        <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="text-xs text-muted-foreground">
-          {hint}
+      {control}
+      {error ? (
+        <p id={errorId} className="text-xs leading-4 text-destructive">
+          {error}
         </p>
       ) : null}
-      <div aria-describedby={describedBy || undefined}>{children}</div>
-      {error ? (
-        <p id={htmlFor ? `${htmlFor}-error` : undefined} className="text-xs text-destructive">
-          {error}
+      {hint ? (
+        <p id={hintId} className="text-xs leading-4 text-muted-foreground">
+          {hint}
         </p>
       ) : null}
     </div>

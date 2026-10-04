@@ -4,6 +4,11 @@ export interface FullPageSpinnerProps {
   label?: string;
 }
 
+/**
+ * Used only while the session itself is resolving — it gates the router, so
+ * there is no page skeleton to shape it after. Pages that already have a layout
+ * use skeletons instead.
+ */
 export function FullPageSpinner({ label = "Loading…" }: FullPageSpinnerProps) {
   return (
     <div

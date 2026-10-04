@@ -86,16 +86,16 @@ function ToolRow({
   onToggle: () => void;
 }) {
   return (
-    <li className="flex items-start gap-2">
+    <li className="flex items-start gap-3 rounded-md px-1 py-1 hover:bg-muted/40 sm:px-0">
       <input
         id={`tool-${tool.name}`}
         type="checkbox"
-        className="mt-1 size-4 shrink-0 rounded border-border accent-primary"
+        className="mt-1 size-4 shrink-0 cursor-pointer rounded border-border accent-primary disabled:cursor-not-allowed"
         checked={checked}
         disabled={disabled}
         onChange={onToggle}
       />
-      <Label htmlFor={`tool-${tool.name}`} className="min-w-0 flex-1 space-y-1">
+      <Label htmlFor={`tool-${tool.name}`} className="min-w-0 flex-1 cursor-pointer space-y-1">
         <span className="flex flex-wrap items-center gap-1.5">
           <Wrench aria-hidden="true" className="size-3.5 text-muted-foreground" />
           <span className="text-sm font-medium">{toolLabel(tool.name)}</span>
@@ -107,8 +107,8 @@ function ToolRow({
           ) : null}
           <RiskBadge risk={tool.risk} />
         </span>
-        <span className="block text-xs text-muted-foreground">{tool.description}</span>
-        <span className="block text-xs text-muted-foreground">
+        <span className="block text-xs leading-4 text-muted-foreground">{tool.description}</span>
+        <span className="block text-xs leading-4 text-muted-foreground">
           Requires {tool.required_permission} permission
         </span>
       </Label>
@@ -173,7 +173,7 @@ export function ToolPicker({
 
   if (loading && groups.length === 0 && detachedGroups.length === 0) {
     return (
-      <p className="rounded-md border border-border border-dashed p-6 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm leading-5 text-muted-foreground">
         Checking which apps are connected…
       </p>
     );
@@ -198,9 +198,9 @@ export function ToolPicker({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {groups.length === 0 ? (
-        <p className="rounded-md border border-border border-dashed p-4 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-sm leading-5 text-muted-foreground">
           Nothing to pick yet — no app is connected to this workspace.{" "}
           <Link to="/integrations" className="font-medium text-primary hover:underline">
             Connect an app
@@ -220,7 +220,7 @@ export function ToolPicker({
               </h4>
               <button
                 type="button"
-                className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                className="-mr-2 inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-xs font-medium text-primary hover:underline disabled:opacity-60 sm:min-h-0"
                 disabled={disabled}
                 onClick={() =>
                   onChange(
@@ -262,7 +262,7 @@ export function ToolPicker({
             </Badge>
             <button
               type="button"
-              className="ml-auto shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+              className="-mr-2 ml-auto inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-xs font-medium text-primary hover:underline disabled:opacity-60 sm:min-h-0"
               disabled={disabled}
               onClick={() =>
                 onChange(value.filter((name) => !group.items.some((tool) => tool.name === name)))
@@ -272,7 +272,7 @@ export function ToolPicker({
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs leading-4 text-muted-foreground">
             {group.name} is selected here but has no connected account, so these cannot run until
             one is connected. They stay selected until you remove them.{" "}
             <Link to="/integrations" className="font-medium text-primary hover:underline">

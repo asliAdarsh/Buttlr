@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export interface SectionCardProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
@@ -15,6 +16,7 @@ export interface SectionCardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
+/** Card + header, used by every settings and detail section. */
 export function SectionCard({
   title,
   description,
@@ -24,9 +26,9 @@ export function SectionCard({
   ...props
 }: SectionCardProps) {
   return (
-    <Card className={className} {...props}>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
+    <Card className={cn(className)} {...props}>
+      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+        <div className="min-w-0 space-y-1">
           <CardTitle>{title}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>

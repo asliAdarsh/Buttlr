@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils";
 
 export interface SpinnerProps extends React.HTMLAttributes<HTMLSpanElement> {}
 
+/**
+ * Spinners are for actions in flight (a button that is submitting), never for
+ * page content — that uses skeletons shaped like what is loading.
+ */
 export function Spinner({ className, ...props }: SpinnerProps) {
   return (
     <span

@@ -32,14 +32,26 @@ export function ConfirmDialog({
   destructive = false,
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A destructive action already in flight must not be dismissed by a stray Escape.
+        if (loading && !next) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
             {cancelLabel}
           </Button>
           <Button
@@ -47,9 +59,11 @@ export function ConfirmDialog({
             variant={destructive ? "destructive" : "default"}
             loading={loading}
             onClick={() => {
-              void Promise.resolve(onConfirm()).then(() => {
-                onOpenChange(false);
-              });
+              void Promise.resolve(onConfirm())
+                // Callers report failures with a toast; swallow here so the dialog
+                // stays open with the user's input instead of becoming an unhandled rejection.
+                .catch(() => undefined)
+                .then(() => onOpenChange(false));
             }}
           >
             {confirmLabel}

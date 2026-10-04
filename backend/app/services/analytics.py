@@ -297,7 +297,11 @@ def _model_label(execution: Execution) -> tuple[str, str]:
 
 
 def _by_model(executions: list[Execution]) -> list[ModelUsageBreakdown]:
-    """Token and cost totals per model that actually produced them."""
+    """Runs, tokens and cost per provider · model that actually served them.
+
+    A run counts even when the provider reports no token usage — the deterministic planner
+    does exactly that, and leaving it out would hide every offline run.
+    """
     totals: dict[tuple[str, str], ModelUsageBreakdown] = {}
     for execution in executions:
         provider, model = _model_label(execution)
@@ -306,7 +310,7 @@ def _by_model(executions: list[Execution]) -> list[ModelUsageBreakdown]:
         if entry is None:
             entry = ModelUsageBreakdown(provider=provider, model=model)
             totals[key] = entry
-        entry.calls += max(execution.usage.calls, 1 if execution.usage.total_tokens else 0)
+        entry.calls += max(execution.usage.calls, 1)
         entry.input_tokens += execution.usage.input_tokens
         entry.output_tokens += execution.usage.output_tokens
         entry.estimated_cost_usd = round(

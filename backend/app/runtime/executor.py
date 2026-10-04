@@ -19,7 +19,7 @@ from pydantic import ValidationError as PydanticValidationError
 from app.core.config import Settings
 from app.core.errors import ButtlrError
 from app.core.logging import get_logger
-from app.database.base import Store, new_id
+from app.database.base import Sort, Store, new_id
 from app.database.repository import Paths, Repository
 from app.integrations.service import IntegrationService
 from app.runtime.memory import MemoryStoreService
@@ -236,6 +236,12 @@ class ButtlrExecutor:
             block = await self.memory.as_prompt_block(shared.organization.id, shared.buttlr.id)
             if block:
                 system_prompt = f"{system_prompt}\n\n{block}"
+        if shared.conversation_id:
+            history = await self._conversation_context(
+                shared.organization.id, shared.buttlr.id, shared.conversation_id, shared.goal
+            )
+            if history:
+                system_prompt = f"{system_prompt}\n\n{history}"
 
         if not specs:
             summary = (
@@ -684,13 +690,71 @@ class ButtlrExecutor:
                 )
         return observations
 
+    async def _conversation_context(
+        self,
+        organization_id: str,
+        buttlr_id: str,
+        conversation_id: str,
+        current: str,
+        *,
+        turns: int = 12,
+        per_message: int = 600,
+    ) -> str:
+        """The earlier turns of this chat, so a reply follows the conversation.
+
+        Without this a chat message runs as a fresh, contextless task: "and what about its
+        open issues?" would have nothing to attach "it" to.
+        """
+        try:
+            rows = await self.repo.list(
+                Paths.messages(organization_id, buttlr_id, conversation_id),
+                order_by="created_at",
+                sort=Sort.DESC,
+                limit=turns + 1,
+            )
+        except ButtlrError:  # pragma: no cover - history is a nicety, never a failure
+            logger.warning("could not read conversation %s", conversation_id)
+            return ""
+
+        history = list(reversed(rows))
+        # The store orders by the stored timestamp, which two documents written in the same
+        # millisecond can share; the time-prefixed id settles it.
+        history.sort(key=lambda row: (str(row.get("created_at") or ""), str(row.get("id") or "")))
+        # The newest user message *is* this run's goal; showing it twice reads as two requests.
+        if history and history[-1].get("role") == ChatRole.USER.value and (
+            str(history[-1].get("content") or "").strip() == current.strip()
+        ):
+            history = history[:-1]
+        if not history:
+            return ""
+
+        lines: list[str] = []
+        for row in history:
+            speaker = "User" if row.get("role") == ChatRole.USER.value else "You"
+            content = str(row.get("content") or "").strip()
+            if len(content) > per_message:
+                content = content[:per_message] + "…"
+            if content:
+                lines.append(f"{speaker}: {content}")
+        if not lines:
+            return ""
+        return (
+            "Earlier in this conversation, oldest first:\n"
+            + "\n".join(lines)
+            + "\n\nContinue the conversation. Answer the latest message with this context in "
+            "mind, and do not repeat a tool call whose result you already have above."
+        )
+
     async def _persist_model_labels(
         self, execution: Execution, model: str | None, provider: str | None
     ) -> None:
-        if not model and not provider:
-            return
-        execution.model = model or execution.model
-        execution.provider = provider or execution.provider
+        # Nothing else can have answered if no plan named a provider: the deterministic planner
+        # did the work, and the execution should say so — per-provider analytics depends on it.
+        if not provider:
+            provider = ModelProviderKind.HEURISTIC.value
+            model = ModelProviderKind.HEURISTIC.value
+        execution.model = model
+        execution.provider = provider
         try:
             await self.repo.patch(
                 Paths.executions(execution.organization_id),
@@ -735,6 +799,11 @@ class ButtlrExecutor:
     ) -> Execution:
         organization = job.organization
         buttlr = job.buttlr
+        # A run always has a planner behind it: name the one that actually answered. The stored
+        # label is the *configured* model, which is not what served this run.
+        if not provider:
+            provider = ModelProviderKind.HEURISTIC.value
+            model = ModelProviderKind.HEURISTIC.value
         execution = await self.executions.finish(execution, status, output=output, error=error)
         if usage.calls or usage.total_tokens:
             execution.usage = usage

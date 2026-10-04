@@ -80,6 +80,9 @@ class ExecutionSummary(DomainModel):
     goal: str = ""
     output: str | None = None
     error: str | None = None
+    #: Which model provider and model actually served this run.
+    provider: str | None = None
+    model: str | None = None
     step_count: int = 0
     usage: Usage = Field(default_factory=Usage)
     created_at: datetime
@@ -99,6 +102,8 @@ def to_summary(execution: Execution) -> ExecutionSummary:
         goal=execution.goal,
         output=execution.output,
         error=execution.error,
+        provider=execution.provider,
+        model=execution.model,
         step_count=len(execution.steps),
         usage=execution.usage,
         created_at=execution.created_at,
