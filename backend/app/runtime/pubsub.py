@@ -10,9 +10,10 @@ not change.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from app.schemas.execution import ExecutionEvent
 
@@ -30,10 +31,8 @@ class ExecutionBus:
         if len(history) > self._history_size:
             del history[: len(history) - self._history_size]
         for queue in list(self._subscribers[event.execution_id]):
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 queue.put_nowait(event)
-            except asyncio.QueueFull:  # pragma: no cover - slow consumer
-                pass
 
     def history(self, execution_id: str) -> list[ExecutionEvent]:
         return list(self._history.get(execution_id, ()))

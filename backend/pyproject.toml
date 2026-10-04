@@ -2,12 +2,12 @@
 name = "buttlr-backend"
 version = "0.1.0"
 description = "Buttlr — AI workforce platform backend"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
-  "pydantic>=2.9.0",
+  "pydantic[email]>=2.9.0",
   "pydantic-settings>=2.6.0",
   "httpx>=0.27.2",
   "PyJWT>=2.9.0",
@@ -20,7 +20,7 @@ dependencies = [
   "python-multipart>=0.0.12",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
   "pytest>=8.3.3",
   "pytest-asyncio>=0.24.0",
@@ -46,7 +46,13 @@ extend-exclude = [".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
-ignore = ["B008", "E501"]
+ignore = [
+    "B008",
+    "E501",
+    # Enums stay `(str, Enum)` on purpose: the wire format and Firestore both key off
+    # `.value`, and `StrEnum` would change `str(member)` semantics under the frozen contract.
+    "UP042",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]

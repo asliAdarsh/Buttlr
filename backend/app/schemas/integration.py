@@ -6,6 +6,7 @@ reaches an HTTP response.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
@@ -103,3 +104,46 @@ class IntegrationCatalogEntry(DomainModel):
 class OAuthStartResponse(DomainModel):
     authorization_url: str
     state: str
+
+
+#: Tool-name prefix -> the provider whose credentials that tool needs. Single source of
+#: truth for turning a capability list into the connections it requires.
+TOOL_PROVIDER_PREFIXES: dict[str, IntegrationProvider] = {
+    "github": IntegrationProvider.GITHUB,
+    "jira": IntegrationProvider.JIRA,
+    "gmail": IntegrationProvider.GOOGLE,
+    "drive": IntegrationProvider.GOOGLE,
+    "sheets": IntegrationProvider.GOOGLE,
+    "calendar": IntegrationProvider.GOOGLE,
+    "docs": IntegrationProvider.GOOGLE,
+}
+
+
+def provider_for_tool(tool: str) -> IntegrationProvider | None:
+    """The provider a tool name belongs to, or ``None`` when it needs none."""
+    prefix = str(tool).split(".", 1)[0].strip().lower()
+    return TOOL_PROVIDER_PREFIXES.get(prefix)
+
+
+def canonical_providers(tools: Iterable[str], declared: Iterable[str] | None = None) -> list[str]:
+    """Normalised, de-duplicated provider names for a Buttlr.
+
+    Accepts provider names and tool prefixes alike, so a configuration that says ``gmail``
+    and one that says ``google`` resolve to the same connection. Unknown names are dropped
+    rather than guessed at.
+    """
+    resolved: list[str] = []
+    for value in declared or []:
+        try:
+            provider = IntegrationProvider(str(value).strip().lower())
+        except ValueError:
+            provider = provider_for_tool(str(value).strip().lower())
+            if provider is None and "." not in str(value):
+                provider = TOOL_PROVIDER_PREFIXES.get(str(value).strip().lower())
+        if provider is not None and provider.value not in resolved:
+            resolved.append(provider.value)
+    for tool in tools or []:
+        provider = provider_for_tool(str(tool))
+        if provider is not None and provider.value not in resolved:
+            resolved.append(provider.value)
+    return resolved

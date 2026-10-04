@@ -6,7 +6,8 @@ in the planner, executor or API needs to change.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from app.runtime.models.base import ToolSpec
 from app.runtime.tools.base import Tool

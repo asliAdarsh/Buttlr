@@ -95,13 +95,15 @@ def weakest(first: Permission | None, second: Permission | None) -> Permission |
 
 
 def _grants_for(buttlr: Buttlr, access: AccessContext) -> list[PermissionGrant]:
+    # One branch per grant subject on purpose: this is the security boundary, and the
+    # readable form is worth more here than a combined boolean expression.
     matches: list[PermissionGrant] = []
     for grant in buttlr.permissions:
-        if grant.subject_type == GrantSubject.EVERYONE:
+        if grant.subject_type == GrantSubject.EVERYONE:  # noqa: SIM114
             matches.append(grant)
-        elif grant.subject_type == GrantSubject.USER and grant.subject == access.user_id:
+        elif grant.subject_type == GrantSubject.USER and grant.subject == access.user_id:  # noqa: SIM114
             matches.append(grant)
-        elif grant.subject_type == GrantSubject.TEAM and grant.subject in access.team_ids:
+        elif grant.subject_type == GrantSubject.TEAM and grant.subject in access.team_ids:  # noqa: SIM114
             matches.append(grant)
         elif (
             grant.subject_type == GrantSubject.ROLE

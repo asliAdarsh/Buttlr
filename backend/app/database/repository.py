@@ -114,6 +114,12 @@ class Repository:
     ) -> int:
         return await self.store.count(collection, conditions)
 
+    async def query_one(
+        self, collection: str, conditions: list[Condition]
+    ) -> dict[str, Any] | None:
+        """First document matching every condition, or ``None``."""
+        return await self.store.query_one(collection, conditions)
+
     async def group(
         self,
         collection_group: str,
