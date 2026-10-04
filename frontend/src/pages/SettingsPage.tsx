@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { DetailList } from "@/components/common/DetailList";
 import { Field } from "@/components/common/Field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -131,7 +132,7 @@ function CategoryNav({
   onSelect: (id: CategoryId) => void;
 }) {
   return (
-    <nav aria-label="Settings categories">
+    <nav aria-label="Settings categories" className="md:sticky md:top-20 md:self-start">
       <ul className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:block md:space-y-1 md:overflow-visible md:px-0">
         {CATEGORIES.map((category) => {
           const Icon = category.icon;
@@ -144,8 +145,8 @@ function CategoryNav({
                 onClick={() => onSelect(category.id)}
                 className={
                   active
-                    ? "flex w-full items-center gap-2 whitespace-nowrap rounded-md bg-primary/10 px-3 py-2 text-sm font-medium text-primary"
-                    : "flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    ? "flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-md bg-muted px-3 py-2 text-sm font-medium text-foreground sm:min-h-0"
+                    : "flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:min-h-0"
                 }
               >
                 <Icon aria-hidden="true" className="size-4 shrink-0" />
@@ -173,7 +174,11 @@ function Segmented<T extends string>({
   disabled?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-md bg-muted p-1">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="flex w-full rounded-md bg-muted p-1 sm:inline-flex sm:w-auto"
+    >
       {options.map((option) => {
         const Icon = option.icon;
         return (
@@ -186,8 +191,8 @@ function Segmented<T extends string>({
             onClick={() => onChange(option.value)}
             className={
               value === option.value
-                ? "inline-flex items-center gap-1.5 rounded-sm bg-card px-3 py-1.5 text-sm font-medium text-foreground shadow-sm"
-                : "inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                ? "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-sm bg-card px-3 py-1.5 text-sm font-medium text-foreground ring-1 ring-border sm:min-h-0 sm:flex-none"
+                : "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground sm:min-h-0 sm:flex-none"
             }
           >
             {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
@@ -211,12 +216,14 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 py-3">
-      <div className="min-w-0 flex-1">
-        <Label htmlFor={htmlFor}>{label}</Label>
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+    <div className="flex flex-col items-stretch gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+      <div className="min-w-0 sm:flex-1">
+        <Label htmlFor={htmlFor} className="leading-5">
+          {label}
+        </Label>
+        <p className="mt-1 text-xs leading-4 text-muted-foreground">{description}</p>
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="shrink-0 self-end sm:self-auto">{children}</div>
     </div>
   );
 }
@@ -386,8 +393,8 @@ function AppearanceSection() {
                 }}
                 className={
                   accent === option.value
-                    ? "flex items-center gap-1 rounded-md border-2 border-primary px-2.5 py-1 text-xs font-medium text-foreground"
-                    : "flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    ? "flex min-h-11 items-center gap-1.5 rounded-md border border-primary bg-muted px-3 py-2 text-xs font-medium text-foreground sm:min-h-0 sm:py-1"
+                    : "flex min-h-11 items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:min-h-0 sm:py-1"
                 }
               >
                 {accent === option.value ? <Check aria-hidden="true" className="size-3" /> : null}
@@ -552,12 +559,13 @@ function OrganizationForm({
             key={option}
             type="button"
             aria-label={`Use ${option} as the organization logo`}
+            aria-pressed={emoji === option}
             disabled={!canManage}
             onClick={() => setEmoji(option)}
             className={
               emoji === option
-                ? "rounded-md border-2 border-primary px-2 py-1 text-base"
-                : "rounded-md border border-border px-2 py-1 text-base disabled:opacity-50"
+                ? "flex min-h-11 min-w-11 items-center justify-center rounded-md border border-primary bg-muted px-2 py-1 text-base sm:min-h-0 sm:min-w-0"
+                : "flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border px-2 py-1 text-base transition-colors hover:bg-muted disabled:opacity-50 sm:min-h-0 sm:min-w-0"
             }
           >
             {option}
@@ -624,7 +632,7 @@ function OrganizationForm({
         </Field>
       </div>
 
-      <div className="divide-y divide-border rounded-md border border-border px-3">
+      <div className="divide-y divide-border rounded-lg border border-border px-3 py-1">
         <SettingRow
           label="Allow local models"
           description="Let Buttlrs use a model served by Ollama on your own machines."
@@ -771,29 +779,53 @@ function ProviderCard({ entry, canManage }: { entry: ModelProviderEntry; canMana
   };
 
   return (
-    <li className="rounded-md border border-border p-3 sm:p-4">
+    <li className="rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Cpu aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         <p className="text-sm font-medium">{entry.name}</p>
         <Badge tone={kind.tone}>{kind.label}</Badge>
       </div>
 
-      <p className="mt-1.5 text-xs text-muted-foreground">{entry.description}</p>
+      <p className="mt-1.5 text-xs leading-4 text-muted-foreground">{entry.description}</p>
 
-      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        <span className={entry.configured ? "font-medium text-success" : "text-muted-foreground"}>
-          {statusLine(entry)}
-        </span>
-        {entry.model ? <span className="font-mono text-muted-foreground">· {entry.model}</span> : null}
+      <dl className="mt-3 flex flex-col gap-1 text-xs">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <dt className="text-muted-foreground">Status</dt>
+          <dd
+            className={
+              entry.configured ? "font-medium text-success" : "text-muted-foreground"
+            }
+          >
+            {statusLine(entry)}
+          </dd>
+        </div>
+        {entry.model ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <dt className="text-muted-foreground">Model</dt>
+            <dd className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+              {entry.model}
+            </dd>
+          </div>
+        ) : null}
         {entry.base_url ? (
-          <span className="break-all font-mono text-muted-foreground">· {entry.base_url}</span>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <dt className="text-muted-foreground">Endpoint</dt>
+            <dd className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+              {entry.base_url}
+            </dd>
+          </div>
         ) : null}
-        {entry.requires_key && entry.configured ? (
-          <span className="text-muted-foreground">· API key saved</span>
+        {entry.requires_key ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <dt className="text-muted-foreground">API key</dt>
+            <dd className="text-muted-foreground">
+              {entry.configured ? "Saved" : "Not saved"}
+            </dd>
+          </div>
         ) : null}
-      </p>
+      </dl>
 
-      {entry.note ? <p className="mt-2 text-xs text-muted-foreground">{entry.note}</p> : null}
+      {entry.note ? <p className="mt-2 text-xs leading-4 text-muted-foreground">{entry.note}</p> : null}
 
       {canManage && editable ? (
         <form className="mt-4 space-y-4 border-t border-border pt-4" onSubmit={submit}>
@@ -848,12 +880,18 @@ function ProviderCard({ entry, canManage }: { entry: ModelProviderEntry; canMana
             />
           </Field>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" size="sm" loading={save.isPending}>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <Button type="submit" size="sm" className="min-h-11 sm:min-h-0" loading={save.isPending}>
               Save
             </Button>
             {canRemove ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => setConfirming(true)}>
+              <Button
+                type="button"
+                size="sm"
+                className="min-h-11 sm:min-h-0"
+                variant="outline"
+                onClick={() => setConfirming(true)}
+              >
                 Remove
               </Button>
             ) : null}
@@ -862,7 +900,7 @@ function ProviderCard({ entry, canManage }: { entry: ModelProviderEntry; canMana
                 href={entry.docs_url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-medium text-primary hover:underline"
+                className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline sm:min-h-0"
               >
                 Get a key
               </a>
@@ -883,7 +921,7 @@ function ProviderCard({ entry, canManage }: { entry: ModelProviderEntry; canMana
       ) : null}
 
       {canManage && !editable ? (
-        <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+        <p className="mt-3 border-t border-border pt-3 text-xs leading-4 text-muted-foreground">
           The built-in planner needs no credentials and cannot be changed. It is always available, so a Buttlr
           keeps working when no other provider is set.
         </p>
@@ -918,10 +956,10 @@ function ModelsSection() {
 
       <div className="mt-4">
         {providers.isPending ? (
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {[0, 1, 2].map((row) => (
               <li key={row}>
-                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-44 w-full rounded-lg" />
               </li>
             ))}
           </ul>
@@ -932,7 +970,7 @@ function ModelsSection() {
             onRetry={() => void providers.refetch()}
           />
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {entries.map((entry) => (
               <ProviderCard key={entry.provider} entry={entry} canManage={canManage} />
             ))}
@@ -942,16 +980,18 @@ function ModelsSection() {
 
       <Separator className="my-4" />
 
-      <dl className="space-y-2 text-sm">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <dt className="text-muted-foreground">Organization default model</dt>
-          <dd className="font-mono text-xs">{organization.data?.settings.default_model ?? "—"}</dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <dt className="text-muted-foreground">Local models allowed</dt>
-          <dd>{organization.data?.settings.allow_local_models ? "Yes" : "No"}</dd>
-        </div>
-      </dl>
+      <DetailList
+        items={[
+          {
+            label: "Organization default model",
+            value: <span className="font-mono text-xs">{organization.data?.settings.default_model ?? "—"}</span>,
+          },
+          {
+            label: "Local models allowed",
+            value: organization.data?.settings.allow_local_models ? "Yes" : "No",
+          },
+        ]}
+      />
       <p className="mt-2 text-xs text-muted-foreground">
         The default model is an organization setting, so change it under{" "}
         <Link to="/settings?tab=organization" className="font-medium text-primary hover:underline">
@@ -991,19 +1031,24 @@ function IntegrationsSection() {
       ) : (
         <ul className="divide-y divide-border">
           {connections.map((integration) => (
-            <li key={integration.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
+            <li
+              key={integration.id}
+              className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3"
+            >
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="truncate text-sm font-medium leading-5">
                   {entryByProvider.get(integration.provider)?.name ?? integration.display_name}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="truncate text-xs leading-4 text-muted-foreground">
                   {integration.account ?? "No account"}
                   {integration.last_used_at
                     ? ` · last used ${formatRelative(integration.last_used_at)}`
                     : " · never used"}
                 </p>
               </div>
-              <StatusPill status={integration.status} size="sm" />
+              <div className="shrink-0">
+                <StatusPill status={integration.status} size="sm" />
+              </div>
             </li>
           ))}
         </ul>
@@ -1023,38 +1068,42 @@ function SecuritySection() {
       title="Security"
       description="How this session was established, and what happens when it ends."
     >
-      <dl className="divide-y divide-border">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Authentication mode</dt>
-          <dd className="flex items-center gap-2 text-sm">
-            {devMode ? "Development sign-in" : "Firebase"}
-            <Badge tone={devMode ? "warning" : "success"}>
-              <Info aria-hidden="true" />
-              {devMode ? "No identity provider" : "External identity provider"}
-            </Badge>
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">This session</dt>
-          <dd className="max-w-sm text-sm">
-            {devMode
+      <DetailList
+        items={[
+          {
+            label: "Authentication mode",
+            value: (
+              <span className="flex flex-wrap items-center justify-end gap-2">
+                {devMode ? "Development sign-in" : "Firebase"}
+                <Badge tone={devMode ? "warning" : "success"}>
+                  <Info aria-hidden="true" />
+                  {devMode ? "No identity provider" : "External identity provider"}
+                </Badge>
+              </span>
+            ),
+          },
+          {
+            label: "This session",
+            value: devMode
               ? "Issued by Buttlr itself from an email address — there is no password."
-              : "Issued by Firebase from your identity provider."}
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Token expiry</dt>
-          <dd className="max-w-sm text-sm text-muted-foreground">
-            {devMode
-              ? "Development tokens last for the window set by DEV_AUTH_TTL_HOURS on the server, which this page cannot read. When a token stops working, Buttlr clears it and asks you to sign in again."
-              : "Firebase controls token lifetime. When a token stops working, Buttlr clears it and asks you to sign in again."}
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Last seen</dt>
-          <dd className="text-sm">{user?.last_seen_at ? formatRelative(user.last_seen_at) : "—"}</dd>
-        </div>
-      </dl>
+              : "Issued by Firebase from your identity provider.",
+          },
+          {
+            label: "Token expiry",
+            value: (
+              <span className="text-muted-foreground">
+                {devMode
+                  ? "Development tokens last for the window set by DEV_AUTH_TTL_HOURS on the server, which this page cannot read. When a token stops working, Buttlr clears it and asks you to sign in again."
+                  : "Firebase controls token lifetime. When a token stops working, Buttlr clears it and asks you to sign in again."}
+              </span>
+            ),
+          },
+          {
+            label: "Last seen",
+            value: user?.last_seen_at ? formatRelative(user.last_seen_at) : "—",
+          },
+        ]}
+      />
 
       <Separator className="my-4" />
 
@@ -1073,29 +1122,37 @@ function PrivacySection() {
 
   return (
     <SectionCard title="Privacy & Data" description="What this organization keeps, and for how long.">
-      <dl className="divide-y divide-border">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Run data</dt>
-          <dd className="max-w-sm text-sm">
-            {settings ? `${settings.data_retention_days} days` : "—"} — steps, tool parameters, results
-            and output for every run.
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Audit log</dt>
-          <dd className="max-w-sm text-sm">
-            {settings ? `${settings.log_retention_days} days` : "—"} — who did what, when, and to which
-            Buttlr.
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Buttlr memory</dt>
-          <dd className="max-w-sm text-sm text-muted-foreground">
-            Kept per Buttlr when its memory is enabled, so it can recall earlier conversations. It never
-            leaves your organization.
-          </dd>
-        </div>
-      </dl>
+      <DetailList
+        items={[
+          {
+            label: "Run data",
+            value: (
+              <>
+                {settings ? `${settings.data_retention_days} days` : "—"} — steps, tool parameters, results
+                and output for every run.
+              </>
+            ),
+          },
+          {
+            label: "Audit log",
+            value: (
+              <>
+                {settings ? `${settings.log_retention_days} days` : "—"} — who did what, when, and to which
+                Buttlr.
+              </>
+            ),
+          },
+          {
+            label: "Buttlr memory",
+            value: (
+              <span className="text-muted-foreground">
+                Kept per Buttlr when its memory is enabled, so it can recall earlier conversations. It never
+                leaves your organization.
+              </span>
+            ),
+          },
+        ]}
+      />
 
       <p className="mt-4 text-xs text-muted-foreground">
         Retention windows are set by organization owners under{" "}
@@ -1161,60 +1218,58 @@ function DeveloperSection() {
         </Button>
       }
     >
-      <dl className="divide-y divide-border">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">API base URL</dt>
-          <dd className="font-mono text-xs">{baseUrl}</dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">API reference</dt>
-          <dd>
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              /docs
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </a>
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Service status</dt>
-          <dd>{statusBadge}</dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Store backend</dt>
-          <dd className="text-sm">
-            {status?.store ?? meta.data?.store_backend ?? "—"}
-            {status ? (status.store_healthy ? " · reachable" : " · unreachable") : ""}
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Scheduler</dt>
-          <dd className="max-w-sm text-sm">
-            {status
+      <DetailList
+        items={[
+          { label: "API base URL", value: <span className="font-mono text-xs">{baseUrl}</span> },
+          {
+            label: "API reference",
+            value: (
+              <a
+                href="/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                /docs
+                <ExternalLink aria-hidden="true" className="size-3" />
+              </a>
+            ),
+          },
+          { label: "Service status", value: statusBadge },
+          {
+            label: "Store backend",
+            value: (
+              <>
+                {status?.store ?? meta.data?.store_backend ?? "—"}
+                {status ? (status.store_healthy ? " · reachable" : " · unreachable") : ""}
+              </>
+            ),
+          },
+          {
+            label: "Scheduler",
+            value: status
               ? status.scheduler
                 ? "Running — scheduled Buttlrs fire on time."
                 : "Disabled — scheduled Buttlrs do not run."
               : meta.data?.scheduler_enabled
                 ? "Running."
-                : "Disabled."}
-          </dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Runs in progress</dt>
-          <dd className="text-sm tabular-nums">{status?.running_executions ?? "—"}</dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 py-3">
-          <dt className="text-sm text-muted-foreground">Version</dt>
-          <dd className="text-sm">
-            {status?.version ?? meta.data?.version ?? "—"}
-            {meta.data?.environment ? ` · ${meta.data.environment}` : ""}
-          </dd>
-        </div>
-      </dl>
+                : "Disabled.",
+          },
+          {
+            label: "Runs in progress",
+            value: <span className="tabular-nums">{status?.running_executions ?? "—"}</span>,
+          },
+          {
+            label: "Version",
+            value: (
+              <>
+                {status?.version ?? meta.data?.version ?? "—"}
+                {meta.data?.environment ? ` · ${meta.data.environment}` : ""}
+              </>
+            ),
+          },
+        ]}
+      />
     </SectionCard>
   );
 }

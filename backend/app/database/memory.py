@@ -167,10 +167,14 @@ class MemoryStore(Store):
             if all(self._matches(doc, condition) for condition in query.conditions)
         ]
         if query.order_by:
-            rows.sort(
-                key=lambda doc: _comparable(doc.get(query.order_by)),  # type: ignore[arg-type]
+            # Tie-break on insertion order: the clock cannot separate two writes microseconds
+            # apart, and getting this wrong shuffles chat history and audit rows.
+            indexed = list(enumerate(rows))
+            indexed.sort(
+                key=lambda pair: (_comparable(pair[1].get(query.order_by)), pair[0]),
                 reverse=query.sort == Sort.DESC,
             )
+            rows = [doc for _, doc in indexed]
         else:
             rows.sort(key=lambda doc: str(doc.get("id", "")), reverse=query.sort == Sort.DESC)
         if query.offset:
@@ -253,7 +257,10 @@ class MemoryStore(Store):
         query = query or Query()
         if query.order_by:
             rows.sort(
-                key=lambda doc: _comparable(doc.get(query.order_by)),  # type: ignore[arg-type]
+                key=lambda doc: (
+                    _comparable(doc.get(query.order_by)),
+                    str(doc.get("id") or ""),
+                ),
                 reverse=query.sort == Sort.DESC,
             )
         if query.limit is not None:

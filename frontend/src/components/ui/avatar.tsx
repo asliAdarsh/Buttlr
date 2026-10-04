@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
 
 const avatarVariants = cva(
-  "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted select-none",
+  "relative flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-muted",
   {
     variants: {
       size: {
@@ -40,7 +40,7 @@ export const Avatar = React.forwardRef<HTMLSpanElement, AvatarProps>(function Av
     >
       {src ? <AvatarPrimitive.Image src={src} alt={name ?? ""} className="size-full object-cover" /> : null}
       <AvatarPrimitive.Fallback
-        className={cn("font-medium text-muted-foreground", emoji ? "text-xl" : undefined)}
+        className={cn("font-medium leading-none text-muted-foreground", emoji ? "text-xl" : undefined)}
         delayMs={src ? 200 : undefined}
       >
         {emoji ?? initials(name)}

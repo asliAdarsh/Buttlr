@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Field } from "@/components/common/Field";
@@ -254,7 +255,10 @@ export function ActivityPage() {
           </div>
 
           {auditTotal > PAGE_SIZE ? (
-            <nav aria-label="Audit log pages" className="mt-4 flex items-center justify-between gap-3">
+            <nav
+              aria-label="Audit log pages"
+              className="mt-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3"
+            >
               <Button
                 type="button"
                 variant="outline"
@@ -265,7 +269,7 @@ export function ActivityPage() {
                 <ChevronLeft aria-hidden="true" className="mr-1 h-4 w-4" />
                 Previous
               </Button>
-              <span className="text-xs tabular-nums text-muted-foreground">
+              <span className="truncate text-center text-xs tabular-nums leading-4 text-muted-foreground">
                 {Math.min(offset + 1, auditTotal)}–{Math.min(offset + PAGE_SIZE, auditTotal)} of {auditTotal}
               </span>
               <Button
@@ -283,17 +287,18 @@ export function ActivityPage() {
         </TabsContent>
 
         <TabsContent value="notifications">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Label
+              htmlFor="unread-only"
+              className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
+            >
               <Switch
                 id="unread-only"
                 checked={unreadOnly}
                 onCheckedChange={(checked) => patchParams({ unread: checked ? "1" : null })}
               />
-              <Label htmlFor="unread-only" className="text-sm">
-                Unread only
-              </Label>
-            </div>
+              Unread only
+            </Label>
             <Button
               type="button"
               variant="outline"
@@ -310,6 +315,22 @@ export function ActivityPage() {
           <div className="mt-4">
             {notifications.isError ? (
               <ErrorState error={notifications.error} onRetry={() => void notifications.refetch()} />
+            ) : notifications.isLoading ? (
+              <ul className="space-y-4">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 sm:p-4"
+                  >
+                    <Skeleton className="size-7 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
             ) : (notifications.data ?? []).length === 0 ? (
               <EmptyState
                 icon={Bell}
@@ -319,9 +340,20 @@ export function ActivityPage() {
                     ? "Everything in this organization has been read."
                     : "Approvals that need you, finished runs and integration problems arrive here."
                 }
+                action={
+                  unreadOnly ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => patchParams({ unread: null })}
+                    >
+                      Show all notifications
+                    </Button>
+                  ) : undefined
+                }
               />
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {(notifications.data ?? []).map((notification) => {
                   const Icon = KIND_ICON[notification.kind] ?? Bell;
                   const href = resolveLink(notification.link);
@@ -343,39 +375,43 @@ export function ActivityPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium">{notification.title}</p>
+                            <p className={notification.read ? "text-sm" : "text-sm font-medium"}>
+                              {notification.title}
+                            </p>
                             {!notification.read ? <Badge tone="primary">Unread</Badge> : null}
                           </div>
-                          <p className="mt-1 break-words text-sm text-muted-foreground">
+                          <p className="mt-1 text-sm leading-5 break-words text-muted-foreground">
                             {notification.body}
                           </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-3">
-                            <span className="text-xs text-muted-foreground">
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="text-xs leading-4 text-muted-foreground">
                               {formatRelative(notification.created_at)}
                             </span>
                             {href ? (
                               <Link
                                 to={href}
-                                className="inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline"
+                                className="inline-flex min-h-11 items-center gap-0.5 text-xs font-medium text-primary hover:underline"
                               >
                                 Open
                                 <ChevronRight aria-hidden="true" className="size-3" />
                               </Link>
                             ) : null}
-                            {!notification.read ? (
+                          </div>
+                          {!notification.read ? (
+                            <div className="mt-1 flex">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs"
+                                className="w-full px-2 sm:w-auto"
                                 onClick={() => void handleMarkRead(notification.id, notification.title)}
                                 loading={markRead.isPending}
                               >
                                 <Check aria-hidden="true" className="mr-1 size-3" />
                                 Mark as read
                               </Button>
-                            ) : null}
-                          </div>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </li>

@@ -3,8 +3,9 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/** One badge, everywhere: soft tint of a semantic colour, never a solid block. */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium leading-5 [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       tone: {

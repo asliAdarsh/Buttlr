@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import { FilterBar } from "@/components/common/FilterBar";
 import { ButtlrCard } from "@/components/buttlr/ButtlrCard";
 import { useAuth } from "@/lib/auth";
 import { useButtlrs, useTeams } from "@/lib/queries";
@@ -90,8 +91,23 @@ export function ButtlrsPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-        <div className="relative">
+      <FilterBar
+        trailing={
+          hasFilters ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="min-h-11 shrink-0 sm:min-h-0"
+            >
+              <FilterX className="size-4" aria-hidden />
+              Clear filters
+            </Button>
+          ) : undefined
+        }
+      >
+        <div className="relative min-w-56 shrink-0 sm:min-w-0 sm:flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -110,23 +126,46 @@ export function ButtlrsPage() {
           value={statusParam}
           onValueChange={(value) => updateParam("status", value)}
           options={STATUS_OPTIONS}
-          className="sm:w-44"
+          className="w-36 shrink-0 sm:w-44"
         />
         <Select
           aria-label="Filter by team"
           value={teamParam}
           onValueChange={(value) => updateParam("team", value)}
           options={teamOptions}
-          className="sm:w-48"
+          className="w-36 shrink-0 sm:w-48"
         />
-      </div>
+      </FilterBar>
 
       {buttlrs.isError ? (
         <ErrorState error={buttlrs.error} onRetry={() => void buttlrs.refetch()} />
       ) : buttlrs.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} className="h-36 w-full rounded-lg" />
+            <div
+              key={index}
+              className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="size-9 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <div className="mt-auto flex items-center gap-4 border-t border-border pt-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
           ))}
         </div>
       ) : list.length > 0 ? (

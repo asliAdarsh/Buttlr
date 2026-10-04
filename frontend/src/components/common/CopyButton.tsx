@@ -9,7 +9,13 @@ export interface CopyButtonProps extends Omit<ButtonProps, "value"> {
   label?: string;
 }
 
-export function CopyButton({ value, label = "Copy", variant = "ghost", size = "sm", ...props }: CopyButtonProps) {
+export function CopyButton({
+  value,
+  label = "Copy",
+  variant = "ghost",
+  size = "sm",
+  ...props
+}: CopyButtonProps) {
   const [copied, setCopied] = React.useState(false);
   const timer = React.useRef<number | undefined>(undefined);
 
@@ -32,7 +38,14 @@ export function CopyButton({ value, label = "Copy", variant = "ghost", size = "s
   }
 
   return (
-    <Button type="button" variant={variant} size={size} onClick={() => void handleCopy()} {...props}>
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      onClick={() => void handleCopy()}
+      aria-label={copied ? "Copied" : label}
+      {...props}
+    >
       {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
       {copied ? "Copied" : label}
     </Button>

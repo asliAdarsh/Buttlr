@@ -52,8 +52,8 @@ export function ModelPicker({
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
+    <div className="space-y-6">
+      <div className="space-y-2">
         <Label htmlFor="model-provider">Provider</Label>
         <Select
           id="model-provider"
@@ -68,7 +68,7 @@ export function ModelPicker({
           options={options}
         />
         {unavailable ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             {PROVIDER_NAMES[value.provider] ?? providerLabel(value.provider)} is no longer
             available in this workspace, so it is kept as the current value but cannot answer until
             it is set up again under{" "}
@@ -80,7 +80,7 @@ export function ModelPicker({
         ) : null}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="model-name">Model</Label>
         <Input
           id="model-name"
@@ -89,14 +89,14 @@ export function ModelPicker({
           disabled={!specific}
           onChange={(event) => patch({ name: event.target.value })}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs leading-4 text-muted-foreground">
           {specific
             ? "The exact model identifier sent to the provider."
             : "Leave on auto to use whatever the organization default points at."}
         </p>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="model-temperature">
           Temperature <span className="font-normal text-muted-foreground">{value.temperature}</span>
         </Label>
@@ -117,7 +117,7 @@ export function ModelPicker({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="model-max-tokens">Max tokens</Label>
         <Input
           id="model-max-tokens"

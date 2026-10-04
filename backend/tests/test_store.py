@@ -120,6 +120,16 @@ async def test_datetimes_survive_file_persistence(tmp_path) -> None:
     assert row["created_at"] == moment
 
 
+async def test_documents_written_in_the_same_millisecond_keep_their_order(store: Store) -> None:
+    """The clock cannot separate two writes microseconds apart, so the id must."""
+    for index in range(4):
+        await store.create("messages", {"content": f"m{index}"})
+    newest_first = await store.query("messages", Query(order_by="created_at", sort=Sort.DESC))
+    assert [row["content"] for row in newest_first] == ["m3", "m2", "m1", "m0"]
+    oldest_first = await store.query("messages", Query(order_by="created_at", sort=Sort.ASC))
+    assert [row["content"] for row in oldest_first] == ["m0", "m1", "m2", "m3"]
+
+
 async def test_query_one_and_delete_many(store: Store) -> None:
     await store.create("notifications", {"read": False, "user_id": "u1"})
     await store.create("notifications", {"read": True, "user_id": "u1"})

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, Plus, Trash2, UsersRound } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,7 +215,7 @@ export function TeamsPage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <h2 className="truncate text-sm font-semibold text-foreground">{team.name}</h2>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
                         {team.description || "No description yet."}
                       </p>
                     </div>
@@ -223,18 +223,18 @@ export function TeamsPage() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="outline">
-                      {buttlrCount} {buttlrCount === 1 ? "Buttlr" : "Buttlrs"}
+                      <span className="tabular-nums">{buttlrCount}</span>{" "}
+                      {buttlrCount === 1 ? "Buttlr" : "Buttlrs"}
                     </Badge>
-                    <Badge tone="muted">{humanize(team.color)}</Badge>
                   </div>
 
                   <div className="mt-auto flex items-center justify-between gap-3">
-                    <div className="flex items-center">
+                    <div className="flex min-w-0 items-center">
                       {visible.length > 0 ? (
-                        <ul className="flex -space-x-2">
+                        <ul className="flex -space-x-2 items-center">
                           {visible.map((member) => (
-                            <li key={member.user_id}>
-                              <span className="block rounded-full ring-2 ring-background">
+                            <li key={member.user_id} className="shrink-0">
+                              <span className="block rounded-full ring-2 ring-card">
                                 <Avatar
                                   name={member.user?.display_name ?? member.user?.email ?? "Member"}
                                   src={member.user?.photo_url ?? undefined}
@@ -244,20 +244,20 @@ export function TeamsPage() {
                             </li>
                           ))}
                           {overflow > 0 && (
-                            <li>
-                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground ring-2 ring-background">
+                            <li className="shrink-0">
+                              <span className="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium leading-none tabular-nums text-muted-foreground ring-2 ring-card">
                                 +{overflow}
                               </span>
                             </li>
                           )}
                         </ul>
                       ) : (
-                        <span className="text-xs text-muted-foreground">No members yet</span>
+                        <span className="text-xs leading-4 text-muted-foreground">No members yet</span>
                       )}
                     </div>
 
                     {canManage && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button
                           type="button"
                           variant="ghost"
@@ -334,28 +334,41 @@ export function TeamsPage() {
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium text-foreground">Icon</legend>
               <div className="flex flex-wrap gap-2">
-                {TEAM_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    aria-label={`Use ${emoji} as the team icon`}
-                    aria-pressed={draft?.emoji === emoji}
-                    onClick={() =>
-                      setDraft((current) => (current ? { ...current, emoji } : current))
-                    }
-                    className={
-                      draft?.emoji === emoji
-                        ? "flex h-10 w-10 items-center justify-center rounded-md border-2 border-primary bg-accent text-lg"
-                        : "flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-lg transition-colors hover:bg-accent"
-                    }
-                  >
-                    {emoji}
-                  </button>
-                ))}
+                {TEAM_EMOJIS.map((emoji) => {
+                  const selected = draft?.emoji === emoji;
+                  return (
+                    <button
+                      key={emoji}
+                      type="button"
+                      aria-label={`Use ${emoji} as the team icon`}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        setDraft((current) => (current ? { ...current, emoji } : current))
+                      }
+                      className={
+                        selected
+                          ? "relative flex min-h-11 min-w-11 items-center justify-center rounded-md border border-primary bg-muted text-lg"
+                          : "flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-background text-lg transition-colors hover:bg-muted"
+                      }
+                    >
+                      <span aria-hidden>{emoji}</span>
+                      {selected && (
+                        <Check
+                          className="absolute -right-1 -bottom-1 size-3.5 rounded-full bg-primary p-px text-primary-foreground"
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </fieldset>
 
-            <Field label="Colour" htmlFor="team-color" hint="Used to tell teams apart at a glance.">
+            <Field
+              label="Colour"
+              htmlFor="team-color"
+              hint="Only a visual cue for spotting teams. It does not change access."
+            >
               <Select
                 id="team-color"
                 value={draft?.color ?? TEAM_COLORS[0]}
@@ -373,7 +386,7 @@ export function TeamsPage() {
                   This organization has no members yet. Invite people from Settings.
                 </p>
               ) : (
-                <ul className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                <ul className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                   {memberList.map((member) => {
                     const checked = draft?.memberIds.includes(member.user_id) ?? false;
                     const inputId = `team-member-${member.user_id}`;
@@ -381,7 +394,7 @@ export function TeamsPage() {
                       <li key={member.user_id}>
                         <label
                           htmlFor={inputId}
-                          className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+                          className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
                         >
                           <input
                             id={inputId}
@@ -406,10 +419,10 @@ export function TeamsPage() {
                             size="xs"
                           />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm text-foreground">
+                            <span className="block truncate text-sm leading-5 text-foreground">
                               {member.user?.display_name ?? "Unnamed member"}
                             </span>
-                            <span className="block truncate text-xs text-muted-foreground">
+                            <span className="block truncate text-xs leading-4 text-muted-foreground">
                               {member.user?.email ?? ""}
                             </span>
                           </span>

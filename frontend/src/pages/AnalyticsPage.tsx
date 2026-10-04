@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -254,7 +254,9 @@ export function AnalyticsPage() {
               title="Tool usage"
               description="How often each tool was called, and how often it failed."
             >
-              {(data?.by_tool ?? []).length === 0 ? (
+              {analytics.isLoading ? (
+                <Skeleton className="h-[240px] w-full" />
+              ) : (data?.by_tool ?? []).length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   No tools were called in this period.
                 </p>
@@ -342,45 +344,71 @@ export function AnalyticsPage() {
             </SectionCard>
 
             <SectionCard
-              title="Models"
-              description="Which models answered, and what they cost."
+              title="Providers"
+              description="Runs, tokens and cost, by the model provider that served them."
             >
-              {(data?.by_model ?? []).length === 0 ? (
+              {analytics.isLoading ? (
+                <div className="space-y-3">
+                  {[0, 1].map((row) => (
+                    <Skeleton key={row} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : (data?.by_model ?? []).length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
-                  No model usage was recorded in this period.
+                  No runs were recorded in this period.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Model</TableHead>
-                        <TableHead className="text-right">Calls</TableHead>
-                        <TableHead className="text-right">Tokens</TableHead>
-                        <TableHead className="text-right">Cost</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(data?.by_model ?? []).map((row) => (
-                        <TableRow key={`${row.provider}-${row.model}`}>
-                          <TableCell>
-                            <span className="block font-medium">{row.model}</span>
-                            <span className="block text-xs text-muted-foreground">
-                              {providerLabel(row.provider)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{row.calls}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatTokens(row.input_tokens + row.output_tokens)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatCost(row.estimated_cost_usd)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <>
+                  <ul className="divide-y divide-border">
+                    {(data?.by_model ?? []).map((row) => (
+                      <li
+                        key={`${row.provider}-${row.model}`}
+                        className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {providerLabel(row.provider)}
+                            {row.model && row.model !== row.provider ? (
+                              <span className="font-normal text-muted-foreground">
+                                {" "}
+                                · {row.model}
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {row.provider === "heuristic"
+                              ? "Built-in planner — no provider account needed"
+                              : row.provider === "ollama"
+                                ? "Local model — nothing leaves your infrastructure"
+                                : "Cloud provider"}
+                          </p>
+                        </div>
+                        <dl className="grid grid-cols-3 gap-4 text-right sm:gap-8">
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Runs</dt>
+                            <dd className="text-sm font-medium tabular-nums">{row.calls}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Tokens</dt>
+                            <dd className="text-sm font-medium tabular-nums">
+                              {formatTokens(row.input_tokens + row.output_tokens)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Cost</dt>
+                            <dd className="text-sm font-medium tabular-nums">
+                              {formatCost(row.estimated_cost_usd)}
+                            </dd>
+                          </div>
+                        </dl>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Cost is estimated from the per-1k-token rates configured for this
+                    deployment; the built-in planner reports no tokens.
+                  </p>
+                </>
               )}
             </SectionCard>
           </div>

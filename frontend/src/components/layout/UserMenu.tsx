@@ -32,7 +32,7 @@ export function UserMenu() {
         <button
           type="button"
           aria-label="Account menu"
-          className="flex w-full items-center gap-2 rounded-md p-2 text-left transition-colors hover:bg-muted"
+          className="flex min-h-11 w-full items-center gap-2 rounded-md p-2 text-left transition-colors hover:bg-muted lg:min-h-0"
         >
           <Avatar name={user.display_name} src={user.photo_url ?? undefined} size="sm" />
           <span className="hidden min-w-0 flex-col sm:flex">
@@ -49,7 +49,7 @@ export function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem onSelect={() => navigate("/settings?tab=profile")}>
+        <DropdownMenuItem onSelect={() => navigate("/settings?tab=account")}>
           <User aria-hidden="true" className="size-4" />
           Profile
         </DropdownMenuItem>

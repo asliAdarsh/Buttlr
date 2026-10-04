@@ -15,6 +15,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +65,7 @@ import {
 } from "@/pages/ButtlrNewPage";
 import { useAuth } from "@/lib/auth";
 import {
+  keys,
   useAvailableModelProviders,
   useApprovals,
   useButtlr,
@@ -91,6 +93,7 @@ import {
   formatRelative,
   formatTokens,
   humanize,
+  providerLabel,
   toolLabel,
 } from "@/lib/format";
 import type {
@@ -233,13 +236,31 @@ function ChatPanel({ buttlrId }: { buttlrId: string }) {
   const sendChat = useSendChat(organizationId ?? "");
   const [draftMessage, setDraftMessage] = useState("");
   const [liveExecutionId, setLiveExecutionId] = useState<string | null>(null);
-  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
   const list = conversations.data ?? [];
 
   // A fresh conversation is selected deliberately, so the newest thread stays open otherwise.
   const active = startingFresh ? null : (conversationId ?? list[0]?.id ?? null);
   const live = useExecutionStream(organizationId, liveExecutionId, null);
   const messages = useMessages(organizationId, buttlrId, active);
+  const queryClient = useQueryClient();
+
+  // The run writes its reply when it finishes; pull it the moment the stream says so rather
+  // than waiting for the next poll.
+  const liveStatus = live.execution?.status;
+  useEffect(() => {
+    if (!active || !liveStatus) return;
+    if (liveStatus !== "completed" && liveStatus !== "failed" && liveStatus !== "cancelled") return;
+    void queryClient.invalidateQueries({
+      queryKey: keys.messages(organizationId ?? "none", buttlrId, active),
+    });
+  }, [liveStatus, active, organizationId, buttlrId, queryClient]);
+
+  // The pause is visible in the run itself: `pending_approval_id` is not known when the send
+  // response is built, so read it from the streamed steps.
+  const approvalStep = (live.execution?.steps ?? []).find(
+    (step) => step.type === "approval_request" && step.status === "pending",
+  );
+  const awaitingApproval = live.execution?.status === "waiting_approval" || Boolean(approvalStep);
 
   const choose = (id: string | null) => {
     setStartingFresh(id === null);
@@ -257,7 +278,6 @@ function ChatPanel({ buttlrId }: { buttlrId: string }) {
       choose(response.conversation_id);
       setDraftMessage("");
       setLiveExecutionId(response.execution_id ?? null);
-      setPendingApprovalId(response.pending_approval_id ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The message could not be sent.");
     }
@@ -385,10 +405,11 @@ function ChatPanel({ buttlrId }: { buttlrId: string }) {
               ) : null}
             </div>
             <ExecutionTimeline execution={live.execution} live={live.isStreaming} />
-            {pendingApprovalId ? (
-              <Alert tone="warning" title="Waiting for approval" className="mt-3">
+            {awaitingApproval ? (
+              <Alert tone="warning" title="Waiting for your approval" className="mt-3">
                 <span>
-                  This run is paused until someone decides.{" "}
+                  {approvalStep?.title ? `${approvalStep.title}. ` : "This run is paused. "}
+                  It continues as soon as someone decides.{" "}
                   <button
                     type="button"
                     className="font-medium underline underline-offset-4"
@@ -404,12 +425,22 @@ function ChatPanel({ buttlrId }: { buttlrId: string }) {
         ) : null}
 
         <div className="space-y-2">
-          <Field label="Message" htmlFor="chat-composer">
+          <Field
+            label="Message"
+            htmlFor="chat-composer"
+            hint="Ctrl + Enter sends."
+          >
             <Textarea
               id="chat-composer"
               rows={3}
               value={draftMessage}
               onChange={(event) => setDraftMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void send();
+                }
+              }}
               placeholder="Ask about the last run, or give it new work."
             />
           </Field>
@@ -490,6 +521,7 @@ function RunsPanel({ buttlrId }: { buttlrId: string }) {
                   <TableHead>Status</TableHead>
                   <TableHead>Trigger</TableHead>
                   <TableHead>Goal</TableHead>
+                  <TableHead>Model</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Tokens</TableHead>
                   <TableHead>When</TableHead>
@@ -518,6 +550,13 @@ function RunsPanel({ buttlrId }: { buttlrId: string }) {
                       {humanize(run.trigger)}
                     </TableCell>
                     <TableCell className="max-w-xs truncate">{run.goal}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {run.provider ? (
+                        <span title={run.model ?? undefined}>{providerLabel(run.provider)}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {run.duration_ms != null ? formatDuration(run.duration_ms) : "—"}
                     </TableCell>

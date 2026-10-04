@@ -35,9 +35,9 @@ export function ActivityTimeline({
 
   if (items.length === 0) {
     return (
-      <p className="rounded-md border border-border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Nothing has happened here yet. Runs, approvals and configuration changes are recorded as
-        they occur.
+      <p className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm leading-5 text-muted-foreground">
+        Nothing has happened here yet. Runs, approvals and configuration changes are recorded as they
+        occur.
       </p>
     );
   }
@@ -48,7 +48,7 @@ export function ActivityTimeline({
       {items.map((item) => {
         const Icon = ACTOR_ICON[item.actor_type] ?? User;
         return (
-          <li key={item.id} className="relative flex gap-3 pb-4">
+          <li key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
             <span
               aria-hidden="true"
               className="z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-card"
@@ -56,8 +56,8 @@ export function ActivityTimeline({
               <Icon className="size-3.5 text-muted-foreground" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm">{item.summary}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="text-sm leading-5 break-words">{item.summary}</p>
+              <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
                 <span className="font-medium text-foreground">
                   {item.actor_name ?? item.actor_type}
                 </span>
@@ -69,7 +69,7 @@ export function ActivityTimeline({
               {item.execution_id ? (
                 <Link
                   to={`/buttlrs/${item.buttlr_id}?tab=runs&execution=${item.execution_id}`}
-                  className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline"
+                  className="mt-1.5 inline-flex min-h-11 items-center gap-0.5 text-xs font-medium text-primary hover:underline sm:min-h-0"
                 >
                   Open run
                   <ChevronRight aria-hidden="true" className="size-3" />

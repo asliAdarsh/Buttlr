@@ -44,15 +44,13 @@ export function ScheduleBadge({ schedule }: { schedule: Schedule }) {
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs leading-5",
         !schedule.enabled && "text-muted-foreground",
       )}
       title={`${label}${schedule.enabled ? "" : " (paused)"} · ${schedule.timezone}`}
     >
       <Icon aria-hidden="true" className="size-3 shrink-0" />
-      <span className="truncate">
-        {schedule.enabled ? label : "Schedule paused"}
-      </span>
+      <span className="truncate">{schedule.enabled ? label : "Schedule paused"}</span>
       <span className="sr-only">{schedule.enabled ? "" : ", schedule paused"}</span>
     </span>
   );
