@@ -155,10 +155,13 @@ GET    /organizations/{org}/approvals      -> Page[Approval]
 GET    /organizations/{org}/approvals/stats-> ApprovalStats
 POST   /organizations/{org}/approvals/{a}/approve -> Approval
 POST   /organizations/{org}/approvals/{a}/reject  -> Approval
-GET    /organizations/{org}/integrations          -> list[IntegrationPublic]
+GET    /organizations/{org}/integrations          -> list[IntegrationPublic]   (shared + your own; admins see all)
 GET    /organizations/{org}/integrations/catalogue-> list[IntegrationCatalogEntry]
+GET    /organizations/{org}/integrations/oauth-clients -> list[OAuthClientPublic]
+PUT    /organizations/{org}/integrations/oauth-clients/{p} -> OAuthClientPublic   (admin)
+DELETE /organizations/{org}/integrations/oauth-clients/{p}                        (admin)
 POST   /organizations/{org}/integrations/token    -> IntegrationPublic
-GET    /organizations/{org}/integrations/{p}/oauth/start -> OAuthStartResponse
+GET    /organizations/{org}/integrations/{p}/oauth/start?scope= -> OAuthStartResponse
 GET    /integrations/oauth/{p}/callback   -> RedirectResponse
 PATCH  /organizations/{org}/integrations/{i}      -> IntegrationPublic
 DELETE /organizations/{org}/integrations/{i}

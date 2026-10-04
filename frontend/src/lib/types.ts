@@ -61,6 +61,8 @@ export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "
 
 export type IntegrationProvider = "github" | "google" | "jira";
 
+export type IntegrationScope = "organization" | "personal";
+
 export type IntegrationStatus = "connected" | "disconnected" | "error" | "expired";
 
 export type AuditAction = string;
@@ -564,6 +566,9 @@ export interface IntegrationPublic {
   organization_id: string;
   provider: IntegrationProvider;
   display_name: string;
+  scope: IntegrationScope;
+  owner_id?: string | null;
+  owner_name?: string | null;
   status: IntegrationStatus;
   account?: string | null;
   scopes: string[];
@@ -577,10 +582,26 @@ export interface IntegrationPublic {
 export interface IntegrationConnectToken {
   provider: IntegrationProvider;
   token: string;
+  scope?: IntegrationScope;
   account?: string | null;
   base_url?: string | null;
   email?: string | null;
   label?: string | null;
+}
+
+export interface OAuthClientPublic {
+  provider: IntegrationProvider;
+  configured: boolean;
+  client_id?: string | null;
+  masked_client_id?: string | null;
+  has_secret: boolean;
+  source?: string | null;
+  redirect_uri?: string | null;
+}
+
+export interface OAuthClientUpdate {
+  client_id: string;
+  client_secret?: string | null;
 }
 
 export interface IntegrationScopesUpdate {

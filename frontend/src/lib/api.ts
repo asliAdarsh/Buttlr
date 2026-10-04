@@ -31,12 +31,15 @@ import type {
   IntegrationCatalogEntry,
   IntegrationConnectToken,
   IntegrationPublic,
+  IntegrationScope,
   IntegrationScopesUpdate,
   MemberInvite,
   MemberUpdate,
   MemberWithUser,
   MetaConfig,
   Notification,
+  OAuthClientPublic,
+  OAuthClientUpdate,
   OAuthStartResponse,
   Organization,
   OrganizationCreate,
@@ -312,13 +315,23 @@ export const api = {
       request<IntegrationCatalogEntry[]>("GET", `/organizations/${orgId}/integrations/catalogue`),
     connectToken: (orgId: string, payload: IntegrationConnectToken) =>
       request<IntegrationPublic>("POST", `/organizations/${orgId}/integrations/token`, payload),
-    oauthStart: (orgId: string, provider: string, redirectUri?: string) =>
+    oauthStart: (orgId: string, provider: string, scope: IntegrationScope = "personal", redirectUri?: string) =>
       request<OAuthStartResponse>(
         "GET",
         `/organizations/${orgId}/integrations/${provider}/oauth/start`,
         undefined,
-        { redirect_uri: redirectUri },
+        { scope, redirect_uri: redirectUri },
       ),
+    oauthClients: (orgId: string) =>
+      request<OAuthClientPublic[]>("GET", `/organizations/${orgId}/integrations/oauth-clients`),
+    setOauthClient: (orgId: string, provider: string, payload: OAuthClientUpdate) =>
+      request<OAuthClientPublic>(
+        "PUT",
+        `/organizations/${orgId}/integrations/oauth-clients/${provider}`,
+        payload,
+      ),
+    clearOauthClient: (orgId: string, provider: string) =>
+      request<void>("DELETE", `/organizations/${orgId}/integrations/oauth-clients/${provider}`),
     updateScopes: (orgId: string, id: string, payload: IntegrationScopesUpdate) =>
       request<IntegrationPublic>("PATCH", `/organizations/${orgId}/integrations/${id}`, payload),
     disconnect: (orgId: string, id: string) =>

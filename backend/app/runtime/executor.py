@@ -426,7 +426,9 @@ class ButtlrExecutor:
         self, organization: Organization, buttlr: Buttlr, execution: Execution, access: AccessContext
     ) -> tuple[Tool | None, ToolContext, list[Any]]:
         try:
-            credentials = await self.integrations.credentials_for(organization.id, buttlr)
+            credentials = await self.integrations.credentials_for(
+                organization.id, buttlr, access.user_id
+            )
         except ButtlrError as exc:
             logger.warning("credential resolution failed: %s", exc.message)
             credentials = {}

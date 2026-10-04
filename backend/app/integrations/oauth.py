@@ -43,15 +43,15 @@ GOOGLE_SCOPES: tuple[str, ...] = (
 STATE_TTL = timedelta(minutes=10)
 
 _TOKEN_TIMEOUT_SECONDS = 20.0
+
 _UNCONFIGURED: dict[IntegrationProvider, str] = {
     IntegrationProvider.GITHUB: (
-        "GitHub sign-in isn't configured on this workspace yet. "
-        "An administrator can connect GitHub with a personal access token instead."
+        "GitHub sign-in needs an OAuth app. An organization owner or admin can add one under "
+        "Integrations, or connect GitHub with a personal access token instead."
     ),
     IntegrationProvider.GOOGLE: (
-        "Google sign-in isn't configured on this workspace yet. "
-        "An administrator needs to register a Google OAuth client before "
-        "Google Workspace can be connected."
+        "Google sign-in needs an OAuth app. An organization owner or admin can add one under "
+        "Integrations."
     ),
 }
 
@@ -69,13 +69,36 @@ class OAuthProviderConfig:
     extra_authorize_params: dict[str, str] = field(default_factory=dict)
 
 
-def provider_config(
+def deployment_client(
     provider: IntegrationProvider, settings: Settings
-) -> OAuthProviderConfig | None:
-    """Return the provider's OAuth configuration, or ``None`` when it is not set up."""
+) -> tuple[str | None, str | None]:
+    """The deployment-wide OAuth app, when an operator registered one.
+
+    Optional: a workspace can supply its own client instead (see
+    ``IntegrationService.set_oauth_client``), so nothing here is required to connect an app.
+    """
     if provider is IntegrationProvider.GITHUB:
-        client_id = settings.github_oauth_client_id
-        client_secret = settings.github_oauth_client_secret
+        return settings.github_oauth_client_id, settings.github_oauth_client_secret
+    if provider is IntegrationProvider.GOOGLE:
+        return settings.google_oauth_client_id, settings.google_oauth_client_secret
+    return None, None
+
+
+def provider_config(
+    provider: IntegrationProvider,
+    settings: Settings,
+    client: tuple[str | None, str | None] | None = None,
+) -> OAuthProviderConfig | None:
+    """Return the provider's OAuth configuration, or ``None`` when it is not set up.
+
+    ``client`` overrides the deployment credentials — it is how a workspace's own OAuth
+    application takes precedence over whatever the deployment happens to define.
+    """
+    client_id, client_secret = (
+        client if client is not None else deployment_client(provider, settings)
+    )
+
+    if provider is IntegrationProvider.GITHUB:
         if not client_id or not client_secret:
             return None
         return OAuthProviderConfig(
@@ -90,8 +113,6 @@ def provider_config(
         )
 
     if provider is IntegrationProvider.GOOGLE:
-        client_id = settings.google_oauth_client_id
-        client_secret = settings.google_oauth_client_secret
         if not client_id or not client_secret:
             return None
         return OAuthProviderConfig(
@@ -111,6 +132,18 @@ def provider_config(
     return None
 
 
+def require_provider_config(
+    provider: IntegrationProvider,
+    settings: Settings,
+    client: tuple[str | None, str | None] | None = None,
+) -> OAuthProviderConfig:
+    """Like :func:`provider_config`, but raises a user-facing error when unconfigured."""
+    config = provider_config(provider, settings, client)
+    if config is None:
+        raise ValidationError(_UNCONFIGURED.get(provider, "That connection isn't available."))
+    return config
+
+
 def provider_display_name(provider: IntegrationProvider) -> str:
     if provider is IntegrationProvider.GITHUB:
         return "GitHub"
@@ -119,16 +152,6 @@ def provider_display_name(provider: IntegrationProvider) -> str:
     if provider is IntegrationProvider.JIRA:
         return "Jira"
     return provider.value.title()
-
-
-def require_provider_config(
-    provider: IntegrationProvider, settings: Settings
-) -> OAuthProviderConfig:
-    """Like :func:`provider_config`, but raises a user-facing error when unconfigured."""
-    config = provider_config(provider, settings)
-    if config is None:
-        raise ValidationError(_UNCONFIGURED.get(provider, "That connection isn't available."))
-    return config
 
 
 def build_authorization_url(
@@ -222,13 +245,21 @@ def _json_or_empty(response: httpx.Response) -> dict[str, Any]:
 
 
 def sign_state(
-    provider: IntegrationProvider, organization_id: str, redirect_uri: str, secret: str
+    provider: IntegrationProvider,
+    organization_id: str,
+    redirect_uri: str,
+    secret: str,
+    *,
+    user_id: str = "",
+    scope: str = "personal",
 ) -> str:
-    """Sign the ``state`` parameter that ties a callback to this organization."""
+    """Sign the ``state`` parameter that ties a callback to an organization and a person."""
     now = datetime.now(UTC)
     claims: dict[str, Any] = {
         "provider": provider.value,
         "org": organization_id,
+        "user": user_id,
+        "scope": scope,
         "redirect": redirect_uri,
         "iat": int(now.timestamp()),
         "exp": int((now + STATE_TTL).timestamp()),

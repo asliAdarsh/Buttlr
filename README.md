@@ -115,6 +115,28 @@ Pass `{"reset": true}` to rebuild it.
 
 ---
 
+## Connections
+
+Everything a Buttlr touches is connected **in the application**, under **Integrations** — never
+by editing `.env`:
+
+* **Anyone** connects their own GitHub, Jira or Google account. Buttlrs they run use *their*
+  account, so a run can never reach more than the person behind it.
+* An **owner or admin** can additionally connect one shared account for the workspace, used
+  when the person running a Buttlr has not connected their own.
+* Resolution per provider is: the account of the person running it → the account of the person
+  who owns the Buttlr → the workspace's shared account. If none exists, the tool fails closed
+  with a message naming the fix.
+* Credentials are encrypted at rest with `ENCRYPTION_KEY` and never returned by the API — not
+  even to an administrator. Disconnecting deletes them.
+
+Sign-in flows (Google, or GitHub OAuth instead of a personal access token) need an OAuth app.
+A workspace can register **its own** under *Integrations → OAuth apps*; the deployment-wide
+`GITHUB_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_ID` pair is only a fallback for workspaces that
+have not registered one. Neither is required to use Buttlr.
+
+---
+
 ## Configuration
 
 All settings come from environment variables (see `backend/.env.example` and
@@ -124,12 +146,13 @@ All settings come from environment variables (see `backend/.env.example` and
 | --- | --- |
 | `AUTH_MODE` | `dev` (self-issued JWTs) or `firebase` (verify Firebase ID tokens) |
 | `STORE_BACKEND` | `auto` \| `firestore` \| `memory` |
+| `ENCRYPTION_KEY` | at-rest encryption for connection credentials |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | enable a cloud model provider |
 | `OLLAMA_BASE_URL` | enable a local model provider |
-| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | enable the GitHub OAuth connect flow |
+| `GITHUB_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_ID` | optional deployment-wide OAuth apps |
 
-Integration credentials are per organization and encrypted at rest (`ENCRYPTION_KEY`); they are
-never read from the environment and never returned by the API.
+No provider credential — GitHub token, Jira API token, Google refresh token — is ever read from
+the environment.
 
 When no model credentials are present the runtime uses the built-in **deterministic planner**
 (`heuristic` provider). It is a real rule-based planner — the product works end to end offline,

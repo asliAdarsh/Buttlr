@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, ExternalLink, Info, Plug, PlugZap } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ExternalLink,
+  Info,
+  Plug,
+  PlugZap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -16,40 +23,124 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CopyButton } from "@/components/common/CopyButton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Field } from "@/components/common/Field";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SectionCard } from "@/components/common/SectionCard";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { IntegrationCard } from "@/components/buttlr/IntegrationCard";
 import { useAuth } from "@/lib/auth";
 import {
+  useClearOauthClient,
   useConnectToken,
   useDisconnectIntegration,
   useIntegrationCatalogue,
   useIntegrations,
-  useMeta,
+  useMembers,
+  useOauthClients,
   useRefreshIntegration,
+  useSetOauthClient,
   useUpdateIntegrationScopes,
 } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { providerLabel } from "@/lib/format";
-import type { IntegrationCatalogEntry, IntegrationProvider, IntegrationPublic } from "@/lib/types";
+import type {
+  IntegrationCatalogEntry,
+  IntegrationProvider,
+  IntegrationPublic,
+  IntegrationScope,
+  OAuthClientPublic,
+} from "@/lib/types";
 
 type ConnectProvider = Extract<IntegrationProvider, "github" | "jira">;
+type OAuthProvider = Extract<IntegrationProvider, "github" | "google">;
+
+const OAUTH_PROVIDERS: OAuthProvider[] = ["github", "google"];
 
 interface ConnectResult {
   integration: IntegrationPublic;
   selected: string[];
 }
 
+/**
+ * Who a new connection belongs to. The second option only exists for owners and admins —
+ * the API rejects it for everyone else.
+ */
+function ScopeChoice({
+  idPrefix,
+  value,
+  onChange,
+  canShare,
+  disabled = false,
+}: {
+  idPrefix: string;
+  value: IntegrationScope;
+  onChange: (scope: IntegrationScope) => void;
+  canShare: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className="space-y-2" disabled={disabled}>
+      <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Who can use this account
+      </legend>
+      <div className="space-y-1.5">
+        <label
+          htmlFor={`${idPrefix}-personal`}
+          className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2.5"
+        >
+          <input
+            id={`${idPrefix}-personal`}
+            type="radio"
+            name={`${idPrefix}-scope`}
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+            checked={value === "personal"}
+            onChange={() => onChange("personal")}
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Just me</span>
+            <span className="block text-xs text-muted-foreground">
+              Connected to your account. Only your Buttlrs use it.
+            </span>
+          </span>
+        </label>
+        {canShare ? (
+          <label
+            htmlFor={`${idPrefix}-organization`}
+            className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2.5"
+          >
+            <input
+              id={`${idPrefix}-organization`}
+              type="radio"
+              name={`${idPrefix}-scope`}
+              className="mt-0.5 size-4 shrink-0 accent-primary"
+              checked={value === "organization"}
+              onChange={() => onChange("organization")}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Everyone in the workspace</span>
+              <span className="block text-xs text-muted-foreground">
+                One shared account every member&apos;s Buttlrs can use. Owners and admins manage it.
+              </span>
+            </span>
+          </label>
+        ) : null}
+      </div>
+    </fieldset>
+  );
+}
+
 function ConnectDialogBody({
   entry,
   organizationId,
+  canShare,
   onClose,
 }: {
   entry: IntegrationCatalogEntry;
   organizationId: string;
+  canShare: boolean;
   onClose: () => void;
 }) {
   const connect = useConnectToken(organizationId);
@@ -58,7 +149,9 @@ function ConnectDialogBody({
   const [token, setToken] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
+  const [scope, setScope] = useState<IntegrationScope>("personal");
   const [result, setResult] = useState<ConnectResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const provider = entry.provider as ConnectProvider;
   const resources = result?.integration.resources ?? [];
@@ -75,21 +168,29 @@ function ConnectDialogBody({
   };
 
   const submit = async () => {
+    setError(null);
     try {
       const integration = await connect.mutateAsync({
         provider,
         token: token.trim(),
+        scope,
         ...(provider === "jira" ? { base_url: baseUrl.trim(), email: email.trim() } : {}),
       });
       const initial = integration.resources
         .filter((resource) => resource.selected)
         .map((resource) => resource.id);
       setResult({ integration, selected: initial });
-      toast.success(`${entry.name} connected as ${integration.account ?? "your account"}.`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error && error.message
-          ? error.message
+      toast.success(
+        scope === "organization"
+          ? `${entry.name} connected for the whole workspace.`
+          : `${entry.name} connected as ${integration.account ?? "your account"}.`,
+      );
+    } catch (caught) {
+      // Persisted next to the fields: a toast would vanish while the dialog stays open, and
+      // the user still has a token to fix.
+      setError(
+        caught instanceof Error && caught.message
+          ? caught.message
           : `${entry.name} could not be connected. Check the credentials and try again.`,
       );
     }
@@ -97,6 +198,7 @@ function ConnectDialogBody({
 
   const saveScopes = async () => {
     if (!result) return;
+    setError(null);
     try {
       await updateScopes.mutateAsync({
         integrationId: result.integration.id,
@@ -104,10 +206,10 @@ function ConnectDialogBody({
       });
       toast.success(`Saved the resources ${entry.name} can reach.`);
       onClose();
-    } catch (error) {
-      toast.error(
-        error instanceof Error && error.message
-          ? error.message
+    } catch (caught) {
+      setError(
+        caught instanceof Error && caught.message
+          ? caught.message
           : "The selected resources could not be saved.",
       );
     }
@@ -168,6 +270,17 @@ function ConnectDialogBody({
           </Alert>
         ) : null}
 
+        {error ? (
+          <Alert
+            tone="destructive"
+            className="mt-3"
+            icon={<AlertTriangle className="size-4" />}
+            title="That didn't work"
+          >
+            {error}
+          </Alert>
+        ) : null}
+
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={updateScopes.isPending}>
             Skip for now
@@ -179,7 +292,6 @@ function ConnectDialogBody({
       </>
     );
   }
-
   return (
     <>
       <DialogHeader>
@@ -188,6 +300,13 @@ function ConnectDialogBody({
       </DialogHeader>
 
       <div className="mt-4 space-y-4">
+        <ScopeChoice
+          idPrefix={`connect-${provider}`}
+          value={scope}
+          onChange={setScope}
+          canShare={canShare}
+        />
+
         {provider === "github" ? (
           <Field
             label="Personal access token"
@@ -251,6 +370,17 @@ function ConnectDialogBody({
         )}
       </div>
 
+      {error ? (
+        <Alert
+          tone="destructive"
+          className="mt-4"
+          icon={<AlertTriangle className="size-4" />}
+          title={`${entry.name} could not be connected`}
+        >
+          {error}
+        </Alert>
+      ) : null}
+
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose} disabled={connect.isPending}>
           Cancel
@@ -261,15 +391,245 @@ function ConnectDialogBody({
           loading={connect.isPending}
           disabled={token.trim().length < 8 || (provider === "jira" && (!baseUrl.trim() || !email.trim()))}
         >
-          Connect
+          {scope === "organization" ? "Connect for the workspace" : "Connect"}
         </Button>
       </DialogFooter>
     </>
   );
 }
 
+/**
+ * Register the workspace's own OAuth app, so connecting a provider needs no deployment secret.
+ * The redirect URI shown here is the one the server will accept the callback on.
+ */
+function OAuthAppForm({
+  provider,
+  client,
+  organizationId,
+}: {
+  provider: OAuthProvider;
+  client: OAuthClientPublic | undefined;
+  organizationId: string;
+}) {
+  const setClient = useSetOauthClient(organizationId);
+  const clearClient = useClearOauthClient(organizationId);
+
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const name = providerLabel(provider);
+  const hasWorkspaceApp = client?.source === "workspace";
+  // The server owns this value: it is the same URL it will accept the callback on.
+  const redirectUri = client?.redirect_uri ?? "";
+
+  const save = async () => {
+    try {
+      await setClient.mutateAsync({
+        provider,
+        payload: {
+          client_id: clientId.trim(),
+          client_secret: clientSecret.trim() || undefined,
+        },
+      });
+      setClientId("");
+      setClientSecret("");
+      toast.success(`This workspace now signs in to ${name} with its own OAuth app.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : `The ${name} OAuth app could not be saved.`,
+      );
+    }
+  };
+
+  const remove = async () => {
+    setConfirmRemove(false);
+    try {
+      await clearClient.mutateAsync(provider);
+      toast.success(`Removed this workspace's ${name} OAuth app.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : `The ${name} OAuth app could not be removed.`,
+      );
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="text-sm font-semibold">{name}</h4>
+        {client?.configured ? (
+          <Badge tone={hasWorkspaceApp ? "primary" : "muted"}>
+            {hasWorkspaceApp ? "This workspace's own app" : "This deployment's app"}
+          </Badge>
+        ) : (
+          <Badge tone="warning">No OAuth app</Badge>
+        )}
+      </div>
+
+      {client?.configured && !hasWorkspaceApp ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Using this deployment&apos;s app
+          {client.masked_client_id ? ` (${client.masked_client_id})` : ""}. Register your own below
+          to use a workspace app instead.
+        </p>
+      ) : client?.configured ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Saved for this workspace
+          {client.masked_client_id ? ` (${client.masked_client_id})` : ""}. The secret is stored
+          encrypted and never shown again.
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {name} sign-in needs an OAuth app. Without one, {name} cannot be connected here.
+        </p>
+      )}
+
+      <div className="mt-3 space-y-3">
+        <Field
+          label="Redirect URI"
+          htmlFor={`oauth-redirect-${provider}`}
+          hint="Copy this into the OAuth app's callback URL field. It must match exactly."
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id={`oauth-redirect-${provider}`}
+              readOnly
+              value={redirectUri}
+              onFocus={(event) => event.currentTarget.select()}
+              className="min-w-0 flex-1 font-mono text-xs"
+            />
+            <CopyButton value={redirectUri} label="Copy" className="shrink-0" />
+          </div>
+        </Field>
+
+        <Field
+          label="Client ID"
+          htmlFor={`oauth-client-id-${provider}`}
+          required
+          hint={hasWorkspaceApp ? "Enter a new client ID to replace the saved one." : undefined}
+        >
+          <Input
+            id={`oauth-client-id-${provider}`}
+            autoComplete="off"
+            spellCheck={false}
+            value={clientId}
+            onChange={(event) => setClientId(event.target.value)}
+          />
+        </Field>
+
+        <Field
+          label="Client secret"
+          htmlFor={`oauth-client-secret-${provider}`}
+          required={!hasWorkspaceApp}
+          hint={
+            hasWorkspaceApp
+              ? "Leave this empty to keep the secret already saved."
+              : "From the OAuth app's settings. Stored encrypted, never shown again."
+          }
+        >
+          <Input
+            id={`oauth-client-secret-${provider}`}
+            type="password"
+            autoComplete="off"
+            value={clientSecret}
+            onChange={(event) => setClientSecret(event.target.value)}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void save()}
+          loading={setClient.isPending}
+          disabled={clientId.trim().length === 0}
+        >
+          Save
+        </Button>
+        {hasWorkspaceApp ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirmRemove(true)}
+            disabled={clearClient.isPending}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </div>
+
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={`Remove this workspace's ${name} OAuth app?`}
+        description="Sign-in for this workspace falls back to the deployment's app. Existing connections keep working."
+        confirmLabel="Remove"
+        destructive
+        loading={clearClient.isPending}
+        onConfirm={() => void remove()}
+      />
+    </div>
+  );
+}
+
+function OAuthAppsSection({ organizationId }: { organizationId: string }) {
+  const clients = useOauthClients(organizationId);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <SectionCard
+      title="OAuth apps"
+      description="Connecting a Google or GitHub account with sign-in needs an OAuth app. A workspace can register its own here instead of using the one this deployment ships with."
+      actions={
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen((current) => !current)}
+          aria-expanded={open}
+          aria-controls="oauth-apps-body"
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={`size-4 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+          {open ? "Hide" : "Show"}
+        </Button>
+      }
+    >
+      <div id="oauth-apps-body" hidden={!open}>
+        {clients.isLoading ? (
+          <div className="space-y-3">
+            {OAUTH_PROVIDERS.map((provider) => (
+              <Skeleton key={provider} className="h-56 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {OAUTH_PROVIDERS.map((provider) => (
+              <OAuthAppForm
+                key={provider}
+                provider={provider}
+                organizationId={organizationId}
+                client={(clients.data ?? []).find((item) => item.provider === provider)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
 export function IntegrationsPage() {
-  const { activeOrganizationId, setActiveOrganization } = useAuth();
+  const { activeOrganizationId, setActiveOrganization, user } = useAuth();
   const organizationId = activeOrganizationId;
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -277,13 +637,16 @@ export function IntegrationsPage() {
   const orgParam = searchParams.get("org");
   const catalogue = useIntegrationCatalogue(organizationId);
   const integrations = useIntegrations(organizationId);
-  const meta = useMeta();
+  const members = useMembers(organizationId);
+  const clients = useOauthClients(organizationId);
   const disconnect = useDisconnectIntegration(organizationId ?? "");
   const refresh = useRefreshIntegration(organizationId ?? "");
   const updateScopes = useUpdateIntegrationScopes(organizationId ?? "");
 
   const [connecting, setConnecting] = useState<IntegrationCatalogEntry | null>(null);
+  const [googleScope, setGoogleScope] = useState<IntegrationScope>("personal");
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
   const handledParam = useRef<string | null>(null);
 
   // The OAuth callback lands back here with ?connected=<provider>&org=<organizationId>. Follow the
@@ -313,30 +676,44 @@ export function IntegrationsPage() {
     setSearchParams,
   ]);
 
+  const role = (members.data ?? []).find((member) => member.user_id === user?.id)?.role;
+  const isAdmin = role === "owner" || role === "admin";
+
   const entryByProvider = useMemo(() => {
     const map = new Map<IntegrationProvider, IntegrationCatalogEntry>();
     for (const entry of catalogue.data ?? []) map.set(entry.provider, entry);
     return map;
   }, [catalogue.data]);
 
+  const oauthClientByProvider = useMemo(() => {
+    const map = new Map<IntegrationProvider, OAuthClientPublic>();
+    for (const item of clients.data ?? []) map.set(item.provider, item);
+    return map;
+  }, [clients.data]);
+
   const connections = integrations.data ?? [];
   const connectedProviders = new Set(connections.map((item) => item.provider));
   const available = (catalogue.data ?? []).filter((entry) => !connectedProviders.has(entry.provider));
+  const sharedConnections = connections.filter((item) => item.scope !== "personal");
+  const personalConnections = connections.filter((item) => item.scope === "personal");
 
   const startGoogleOAuth = async () => {
     if (!organizationId) return;
     setGoogleBusy(true);
+    setGoogleError(null);
     try {
-      const { authorization_url } = await api.integrations.oauthStart(organizationId, "google");
+      const { authorization_url } = await api.integrations.oauthStart(
+        organizationId,
+        "google",
+        googleScope,
+      );
       window.location.assign(authorization_url);
     } catch (error) {
       setGoogleBusy(false);
-      toast.error(
-        error instanceof ApiError && error.isForbidden
-          ? "Only organization owners and admins can connect Google Workspace."
-          : error instanceof Error && error.message
-            ? error.message
-            : "Google sign-in could not be started.",
+      setGoogleError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Google sign-in could not be started.",
       );
     }
   };
@@ -380,13 +757,30 @@ export function IntegrationsPage() {
     }
   };
 
-  const googleOAuthEnabled = meta.data?.google_oauth_enabled ?? false;
+  const busy = disconnect.isPending || refresh.isPending || updateScopes.isPending;
+
+  const renderConnection = (integration: IntegrationPublic) => (
+    <li key={integration.id}>
+      <IntegrationCard
+        integration={integration}
+        entry={entryByProvider.get(integration.provider)}
+        busy={busy}
+        canManage={
+          isAdmin || (integration.scope === "personal" && integration.owner_id === user?.id)
+        }
+        oauthClient={oauthClientByProvider.get(integration.provider) ?? null}
+        onRefresh={() => void handleRefresh(integration)}
+        onDisconnect={() => void handleDisconnect(integration)}
+        onUpdateScopes={(resourceIds) => void handleUpdateScopes(integration, resourceIds)}
+      />
+    </li>
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Integrations"
-        description="Accounts Buttlrs act on your behalf. Nothing is shared until you connect and choose what to expose."
+        description="Accounts Buttlrs act on your behalf. Connect your own; owners and admins can also connect one shared account for the workspace."
       />
 
       {integrations.isError ? (
@@ -395,35 +789,40 @@ export function IntegrationsPage() {
         <ErrorState error={catalogue.error} onRetry={() => void catalogue.refetch()} />
       ) : (
         <>
-          <SectionCard
-            title="Connected"
-            description="These accounts are available to every Buttlr in this organization. Use the checkboxes to limit what each one can reach."
-          >
-            {connections.length === 0 ? (
+          {connections.length === 0 ? (
+            <SectionCard
+              title="Connected"
+              description="Accounts available to the Buttlrs in this organization."
+            >
               <EmptyState
                 icon={PlugZap}
                 title="Nothing connected yet"
                 description="Connect an account below. Buttlrs that use these tools cannot run until one is connected."
               />
-            ) : (
+            </SectionCard>
+          ) : null}
+
+          {sharedConnections.length > 0 ? (
+            <SectionCard
+              title="Shared with the workspace"
+              description="One account every member's Buttlrs can use. Owners and admins manage it."
+            >
               <ul className="grid gap-4 lg:grid-cols-2">
-                {connections.map((integration) => (
-                  <li key={integration.id}>
-                    <IntegrationCard
-                      integration={integration}
-                      entry={entryByProvider.get(integration.provider)}
-                      busy={disconnect.isPending || refresh.isPending || updateScopes.isPending}
-                      onRefresh={() => void handleRefresh(integration)}
-                      onDisconnect={() => void handleDisconnect(integration)}
-                      onUpdateScopes={(resourceIds) =>
-                        void handleUpdateScopes(integration, resourceIds)
-                      }
-                    />
-                  </li>
-                ))}
+                {sharedConnections.map(renderConnection)}
               </ul>
-            )}
-          </SectionCard>
+            </SectionCard>
+          ) : null}
+
+          {personalConnections.length > 0 ? (
+            <SectionCard
+              title="Your connections"
+              description="Accounts connected by each person. A Buttlr only uses the connections of the person it belongs to."
+            >
+              <ul className="grid gap-4 lg:grid-cols-2">
+                {personalConnections.map(renderConnection)}
+              </ul>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             title="Available"
@@ -483,30 +882,39 @@ export function IntegrationsPage() {
                             ? `${entry.name} is not ready to connect on this deployment yet.`
                             : `${entry.name} cannot be connected right now. Check the API logs for the reason.`}
                         </Alert>
-                      ) : isGoogle && !googleOAuthEnabled ? (
-                        <Alert
-                          tone="warning"
-                          title="Google sign-in is not configured"
-                          icon={<AlertTriangle className="size-4" />}
-                        >
-                          Google Workspace connects through OAuth, which needs client credentials on the
-                          server. Set <code className="font-mono">GOOGLE_OAUTH_CLIENT_ID</code> and{" "}
-                          <code className="font-mono">GOOGLE_OAUTH_CLIENT_SECRET</code> in the environment,
-                          then restart the API. Until then this connection cannot be started.
-                        </Alert>
+                      ) : isGoogle ? (
+                        <>
+                          <ScopeChoice
+                            idPrefix="google"
+                            value={googleScope}
+                            onChange={setGoogleScope}
+                            canShare={isAdmin}
+                            disabled={googleBusy}
+                          />
+                          {googleError ? (
+                            <Alert tone="warning" title="Google sign-in could not start">
+                              {googleError}
+                            </Alert>
+                          ) : null}
+                          <div className="mt-auto">
+                            <Button
+                              type="button"
+                              onClick={() => void startGoogleOAuth()}
+                              loading={googleBusy}
+                            >
+                              <Plug aria-hidden="true" className="mr-1.5 size-4" />
+                              Connect with Google
+                            </Button>
+                          </div>
+                        </>
                       ) : (
                         <div className="mt-auto">
                           <Button
                             type="button"
-                            onClick={() =>
-                              isGoogle
-                                ? void startGoogleOAuth()
-                                : setConnecting(entry as IntegrationCatalogEntry)
-                            }
-                            loading={isGoogle ? googleBusy : false}
+                            onClick={() => setConnecting(entry as IntegrationCatalogEntry)}
                           >
                             <Plug aria-hidden="true" className="mr-1.5 size-4" />
-                            {isGoogle ? "Connect with Google" : `Connect ${entry.name}`}
+                            Connect {entry.name}
                           </Button>
                         </div>
                       )}
@@ -531,6 +939,10 @@ export function IntegrationsPage() {
               .
             </p>
           </SectionCard>
+
+          {isAdmin && organizationId ? (
+            <OAuthAppsSection organizationId={organizationId} />
+          ) : null}
         </>
       )}
 
@@ -546,6 +958,7 @@ export function IntegrationsPage() {
               key={connecting.provider}
               entry={connecting}
               organizationId={organizationId}
+              canShare={isAdmin}
               onClose={() => setConnecting(null)}
             />
           ) : null}
