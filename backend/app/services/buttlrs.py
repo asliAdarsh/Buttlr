@@ -21,6 +21,7 @@ from app.core.errors import ModelError, NotFoundError, PermissionDeniedError, Va
 from app.core.logging import get_logger
 from app.database.base import Condition, Op, Sort, Store, new_id
 from app.database.repository import Paths, Repository
+from app.integrations.service import connection_doc_id
 from app.runtime.drafting import heuristic_draft, heuristic_refine
 from app.runtime.models.base import CompletionRequest, Message
 from app.runtime.models.router import ModelRouter
@@ -49,6 +50,7 @@ from app.schemas.enums import (
     ExecutionTrigger,
     GrantSubject,
     IntegrationProvider,
+    IntegrationScope,
     IntegrationStatus,
     Permission,
 )
@@ -527,23 +529,47 @@ class ButtlrService:
             )
 
     async def _require_integrations_connected(self, buttlr: Buttlr) -> None:
-        """The deployment gate: every provider the Buttlr depends on must be connected.
+        """The deployment gate: every provider the Buttlr depends on must be reachable.
 
-        Configuration is permissive on purpose — a Buttlr may be drafted before its
-        integrations exist — but deploying something that cannot reach its tools would be
-        a lie, so this is where it is refused.
+        Reachable means the workspace has connected it, or the person who owns the Buttlr
+        connected their own account — the same resolution the runtime uses at run time.
+        Configuration is permissive on purpose: a Buttlr may be drafted before its
+        integrations exist, but deploying something that cannot reach its tools would be a
+        lie, so it is refused here.
         """
         organization_id = buttlr.organization_id
         missing: list[str] = []
         for provider in dict.fromkeys(buttlr.integrations):
-            integration = await self._integration(organization_id, provider)
-            if integration is None or integration.status != IntegrationStatus.CONNECTED:
-                missing.append(provider)
+            if await self._reachable_integration(organization_id, provider, buttlr.created_by):
+                continue
+            missing.append(provider)
         if missing:
             raise ValidationError(
                 f"Connect {missing[0]} in Integrations before deploying {buttlr.name}.",
                 details={"missing_integrations": missing},
             )
+
+    async def _reachable_integration(
+        self, organization_id: str, provider: str, owner_id: str | None
+    ) -> Integration | None:
+        """The shared connection for a provider, or the owner's own. ``None`` when neither."""
+        try:
+            provider_kind = IntegrationProvider(provider)
+        except ValueError:
+            return None
+        candidate_ids = [connection_doc_id(provider_kind, IntegrationScope.ORGANIZATION, None)]
+        if owner_id:
+            candidate_ids.insert(
+                0, connection_doc_id(provider_kind, IntegrationScope.PERSONAL, owner_id)
+            )
+        for doc_id in candidate_ids:
+            raw = await self.repo.get(Paths.integrations(organization_id), doc_id)
+            if raw is None:
+                continue
+            integration = Integration.model_validate(raw)
+            if integration.status == IntegrationStatus.CONNECTED:
+                return integration
+        return None
 
     async def _integration(
         self, organization_id: str, provider: str

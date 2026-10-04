@@ -24,6 +24,7 @@ import type {
   IntegrationScopesUpdate,
   MemberInvite,
   MemberUpdate,
+  OAuthClientUpdate,
   OrganizationCreate,
   OrganizationUpdate,
   SeedRequest,
@@ -55,6 +56,7 @@ export const keys = {
   approvalStats: (id: string) => ["organization", id, "approvals", "stats"] as const,
   integrations: (id: string) => ["organization", id, "integrations"] as const,
   catalogue: (id: string) => ["organization", id, "integrations", "catalogue"] as const,
+  oauthClients: (id: string) => ["organization", id, "integrations", "oauth-clients"] as const,
   audit: (id: string, filters?: Record<string, unknown>) =>
     ["organization", id, "audit", filters ?? {}] as const,
   notifications: (id: string, filters?: Record<string, unknown>) =>
@@ -167,6 +169,13 @@ export const useIntegrationCatalogue = (organizationId: string | null) =>
   useQuery({
     queryKey: keys.catalogue(organizationId ?? "none"),
     queryFn: () => api.integrations.catalogue(organizationId as string),
+    enabled: Boolean(organizationId),
+  });
+
+export const useOauthClients = (organizationId: string | null) =>
+  useQuery({
+    queryKey: keys.oauthClients(organizationId ?? "none"),
+    queryFn: () => api.integrations.oauthClients(organizationId as string),
     enabled: Boolean(organizationId),
   });
 
@@ -421,6 +430,27 @@ export function useRefreshIntegration(organizationId: string) {
   return useMutation({
     mutationFn: (integrationId: string) => api.integrations.refresh(organizationId, integrationId),
     onSuccess: () => invalidateOrg(client, organizationId),
+  });
+}
+
+export function useSetOauthClient(organizationId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ provider, payload }: { provider: string; payload: OAuthClientUpdate }) =>
+      api.integrations.setOauthClient(organizationId, provider, payload),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.oauthClients(organizationId) });
+    },
+  });
+}
+
+export function useClearOauthClient(organizationId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: string) => api.integrations.clearOauthClient(organizationId, provider),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.oauthClients(organizationId) });
+    },
   });
 }
 

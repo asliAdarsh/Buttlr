@@ -62,9 +62,15 @@ export function toolLabel(tool?: string | null): string {
   return humanize(action.replace(/_/g, " "));
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  github: "GitHub",
+  google: "Google",
+  jira: "Jira",
+};
+
 export function providerLabel(provider?: string | null): string {
   if (!provider) return "—";
-  return provider.charAt(0).toUpperCase() + provider.slice(1);
+  return PROVIDER_LABELS[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
 export function initials(name?: string | null): string {

@@ -19,6 +19,7 @@ from app.schemas.buttlr import Buttlr, ButtlrDraftRequest, PermissionGrant
 from app.schemas.enums import (
     GrantSubject,
     IntegrationProvider,
+    IntegrationScope,
     IntegrationStatus,
     NotificationKind,
     OrgRole,
@@ -113,7 +114,9 @@ async def seed(container: ContainerDep, payload: SeedRequest | None = None) -> S
         github_connected = any(
             integration.provider == IntegrationProvider.GITHUB
             and integration.status == IntegrationStatus.CONNECTED
-            for integration in await container.integrations.list(organization.id)
+            for integration in await container.integrations.list(
+                organization.id, viewer_id=principal.user_id, is_admin=True
+            )
         )
         return SeedResponse(
             user_id=principal.user_id,
@@ -162,7 +165,10 @@ async def seed(container: ContainerDep, payload: SeedRequest | None = None) -> S
 
     github_connected = False
     jira_connected = any(
-        integration.provider == IntegrationProvider.JIRA for integration in await container.integrations.list(organization.id)
+        integration.provider == IntegrationProvider.JIRA
+        for integration in await container.integrations.list(
+            organization.id, viewer_id=principal.user_id, is_admin=True
+        )
     )
     if request.github_token:
         try:
@@ -172,6 +178,7 @@ async def seed(container: ContainerDep, payload: SeedRequest | None = None) -> S
                 IntegrationConnectToken(
                     provider=IntegrationProvider.GITHUB,
                     token=request.github_token,
+                    scope=IntegrationScope.ORGANIZATION,
                     account=email,
                 ),
             )

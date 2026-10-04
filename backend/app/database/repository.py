@@ -36,6 +36,11 @@ class Paths:
         return org_path(organization_id, "integrations")
 
     @staticmethod
+    def oauth_apps(organization_id: str) -> str:
+        """A workspace's own OAuth applications, one document per provider."""
+        return org_path(organization_id, "oauthApps")
+
+    @staticmethod
     def executions(organization_id: str) -> str:
         return org_path(organization_id, "executions")
 

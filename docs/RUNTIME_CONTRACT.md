@@ -136,17 +136,32 @@ Both must check `executions.get(...)` for a `CANCELLED` status between steps and
 ## 5. IntegrationService
 
 Constructor is `IntegrationService(store, audit, settings)` (see `app/container.py`).
-Beyond `docs/CONTRACTS.md` it must expose:
+
+Connections belong to a **person** (`scope="personal"`, doc id `github:<user>`) or to the
+**workspace** (`scope="organization"`, doc id `github`). Anyone may connect their own; only
+owner/admin may connect a shared one.
 
 ```python
-async def add_tools(self, registry) -> None            # not needed; tools are static
-async def probe(self, provider: IntegrationProvider, credentials: dict) -> str | None
+async def list(self, org_id, *, viewer_id: str, is_admin: bool = False) -> list[IntegrationPublic]
+async def get(self, org_id, provider) -> Integration | None           # the shared connection
+async def preferred(self, org_id, provider, *, user_id=None, creator_id=None) -> Integration | None
+async def credentials_for(self, org_id, buttlr, user_id: str | None = None) -> dict[str, dict]
+async def oauth_start(self, org_id, provider, redirect_uri, *, user_id, scope=IntegrationScope.PERSONAL) -> OAuthStartResponse
+async def oauth_clients(self, org_id, *, redirect_uri=None) -> list[OAuthClientPublic]
+async def set_oauth_client(self, principal, org_id, provider, payload) -> OAuthClientPublic
+async def clear_oauth_client(self, principal, org_id, provider) -> None
+def callback_url(self, provider) -> str
+async def probe(self, provider, credentials) -> str | None
 ```
 
-`credentials_for(org_id, buttlr) -> dict[str, dict]` returns **decrypted** credentials keyed by
-provider, for every provider in `buttlr.integrations` (deduplicated, ignoring disconnected
-integrations). A missing integration yields no key; tools then fail closed with an actionable
-message.
+`credentials_for` resolves each provider in order: the account of the person running the
+Buttlr, the account of the person who owns it, then the workspace's shared account. A provider
+with none of those yields no key; tools then fail closed with an actionable message.
+
+OAuth client credentials come from the workspace's own app (`Paths.oauth_apps(org_id)`, secret
+encrypted) when one is registered, and from the optional `GITHUB_OAUTH_CLIENT_ID`/
+`GOOGLE_OAUTH_CLIENT_ID` deployment settings otherwise. Provider tokens and API keys are never
+read from the environment.
 
 Provider client modules (used by both tools and IntegrationService):
 
