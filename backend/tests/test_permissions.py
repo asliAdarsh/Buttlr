@@ -102,7 +102,79 @@ def test_ask_rule_requests_approval_without_allowing_execution() -> None:
     assert not decision.allowed
 
 
-def test_deny_rule_wins_over_permission() -> None:
+def test_read_only_tools_are_never_gated_however_the_policy_reads() -> None:
+    """Reading changes nothing, so it must never queue an approval — a resumed run would just
+    ask again. A rule that names reads still applies to the writes it matches."""
+    buttlr = make_buttlr(
+        permissions=[
+            PermissionGrant(
+                subject_type=GrantSubject.EVERYONE, subject="*", permission=Permission.ADMIN
+            )
+        ],
+        approval_policy=ApprovalPolicy(
+            default_mode=ApprovalMode.ASK,
+            rules=[ApprovalRule(tool="*", mode=ApprovalMode.ASK)],
+        ),
+    )
+    read = engine.evaluate(
+        buttlr=buttlr,
+        access=member(),
+        tool_name="github.list_repositories",
+        required_permission=Permission.EXECUTE,
+        risk=RiskLevel.LOW,
+        read_only=True,
+    )
+    assert read.decision == Decision.ALLOW
+    assert read.requires_approval is False
+
+    write = engine.evaluate(
+        buttlr=buttlr,
+        access=member(),
+        tool_name="github.create_issue",
+        required_permission=Permission.EXECUTE,
+        risk=RiskLevel.HIGH,
+        read_only=False,
+    )
+    assert write.decision == Decision.REQUEST_APPROVAL
+
+
+def test_a_read_only_rule_does_not_exempt_the_same_family_write() -> None:
+    buttlr = make_buttlr(
+        permissions=[
+            PermissionGrant(
+                subject_type=GrantSubject.EVERYONE, subject="*", permission=Permission.ADMIN
+            )
+        ],
+        approval_policy=ApprovalPolicy(
+            default_mode=ApprovalMode.AUTO,
+            rules=[ApprovalRule(tool="github.*", mode=ApprovalMode.ASK)],
+        ),
+    )
+    assert (
+        engine.evaluate(
+            buttlr=buttlr,
+            access=member(),
+            tool_name="github.list_issues",
+            required_permission=Permission.EXECUTE,
+            risk=RiskLevel.LOW,
+            read_only=True,
+        ).decision
+        == Decision.ALLOW
+    )
+    assert (
+        engine.evaluate(
+            buttlr=buttlr,
+            access=member(),
+            tool_name="github.add_comment",
+            required_permission=Permission.EXECUTE,
+            risk=RiskLevel.MEDIUM,
+            read_only=False,
+        ).decision
+        == Decision.REQUEST_APPROVAL
+    )
+
+
+def test_a_deny_rule_wins_over_permission() -> None:
     buttlr = make_buttlr(
         permissions=[
             PermissionGrant(

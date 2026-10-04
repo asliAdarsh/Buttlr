@@ -254,6 +254,16 @@ class ButtlrExecutor:
         provider_label: str | None = execution.provider
         output: str | None = None
         degraded: str | None = None
+        #: (tool, arguments) pairs already run in this execution — including the ones carried
+        #: over when a resume continues a paused run.
+        attempted: set[tuple[str, str]] = {
+            _call_signature(observation.tool, observation.arguments)
+            for observation in observations
+            if observation.tool
+        }
+        approvals_taken = sum(
+            1 for step in execution.steps if step.type == StepType.APPROVAL_REQUEST
+        )
 
         for _ in range(self.settings.max_agent_steps):
             fresh = await self._reload(execution)
@@ -339,12 +349,45 @@ class ButtlrExecutor:
                 )
                 continue
 
+            signature = _call_signature(tool.name, plan.arguments)
+            if signature in attempted:
+                # A weak or offline model will happily re-issue a call it already made,
+                # especially after an approval resumes the run. Re-running it would ask for
+                # approval again and never progress, so record it and move on.
+                observations.append(
+                    Observation(
+                        tool=tool.name,
+                        arguments=plan.arguments,
+                        ok=False,
+                        summary=(
+                            f"{tool.action_label()} was already run with these arguments in "
+                            "this run; its result is above."
+                        ),
+                    )
+                )
+                execution = await self.executions.append_step(
+                    execution,
+                    ExecutionStep(
+                        index=len(observations),
+                        type=StepType.STATUS,
+                        title=f"Skipped a repeated {tool.action_label()} call",
+                        status=StepStatus.SKIPPED,
+                        detail="Already run with the same arguments earlier in this run.",
+                        tool=tool.name,
+                        params=plan.arguments,
+                        finished_at=utcnow(),
+                    ),
+                )
+                continue
+            attempted.add(signature)
+
             decision = self.permissions.evaluate(
                 buttlr=shared.buttlr,
                 access=shared.access,
                 tool_name=tool.name,
                 required_permission=tool.required_permission,
                 risk=tool.risk,
+                read_only=tool.read_only,
                 owner_access=await self._owner_access(shared.organization, shared.buttlr, shared.access),
             )
 
@@ -381,6 +424,26 @@ class ButtlrExecutor:
                 continue
 
             if decision.requires_approval and not shared.dry_run:
+                if approvals_taken >= self.settings.max_approvals_per_run:
+                    summary = (
+                        f"{shared.buttlr.name} asked for approval {approvals_taken} times in one "
+                        "run and stopped there. Check the approval policy — a rule may be asking "
+                        "before an action that does not need it."
+                    )
+                    execution = await self.executions.append_step(
+                        execution, _message_step(len(observations), summary, StepStatus.FAILED)
+                    )
+                    return await self._finalize(
+                        job,
+                        execution,
+                        ExecutionStatus.COMPLETED,
+                        summary,
+                        None,
+                        usage,
+                        model=model_label,
+                        provider=provider_label,
+                    )
+                approvals_taken += 1
                 approval = await self.approvals.create(
                     organization=shared.organization,
                     buttlr=shared.buttlr,
@@ -793,6 +856,15 @@ def _message_step(index: int, text: str, status: StepStatus = StepStatus.COMPLET
         detail=text,
         finished_at=utcnow(),
     )
+
+
+def _call_signature(tool: str, arguments: dict[str, Any]) -> tuple[str, str]:
+    """Identity of a call, so the same one is never run twice in a single execution."""
+    try:
+        encoded = json.dumps(arguments, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        encoded = str(arguments)
+    return (tool, encoded)
 
 
 def _resource_label(tool: str, arguments: dict[str, Any]) -> str | None:
