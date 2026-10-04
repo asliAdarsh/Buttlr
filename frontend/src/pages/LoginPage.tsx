@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, Building2, KeyRound, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,25 +120,22 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-2">
-      <section className="hidden flex-col justify-between border-r border-border bg-muted/40 p-10 lg:flex">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-          >
-            <Sparkles className="h-5 w-5" />
+      <section className="hidden flex-col justify-between border-r border-border bg-card p-10 lg:flex">
+        <div className="flex items-center gap-2">
+          <span aria-hidden className="text-2xl leading-none">
+            🫙
           </span>
-          <span className="text-lg font-semibold text-foreground">Buttlr</span>
+          <h1 className="text-base font-semibold leading-6 text-foreground">Buttlr</h1>
         </div>
         <div className="max-w-sm space-y-6">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          <p className="text-xl font-semibold leading-7 tracking-tight text-foreground">
             An AI Workforce Operating System.
-          </h1>
-          <p className="text-muted-foreground">
+          </p>
+          <p className="text-sm leading-5 text-muted-foreground">
             Describe the work you want done. Buttlr writes the instructions, waits for your
             approval where it matters, and keeps a record of every run.
           </p>
-          <ul className="space-y-3 text-sm text-muted-foreground">
+          <ul className="space-y-3 text-sm leading-5 text-muted-foreground">
             <li className="flex gap-3">
               <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
               <span>Every Buttlr belongs to an organization and reports to the people you invite.</span>
@@ -149,7 +146,7 @@ export function LoginPage() {
             </li>
           </ul>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm leading-5 text-muted-foreground">
           {firebaseMode
             ? "Sign in with your Buttlr account. Sessions are issued by Firebase Authentication."
             : "No password. This deployment signs you in by email."}
@@ -160,25 +157,24 @@ export function LoginPage() {
         <div className="w-full max-w-md space-y-8">
           <div className="space-y-2 lg:hidden">
             <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-              >
-                <Sparkles className="h-4 w-4" />
+              <span aria-hidden className="text-2xl leading-none">
+                🫙
               </span>
-              <span className="text-lg font-semibold text-foreground">Buttlr</span>
+              <h1 className="text-base font-semibold leading-6 text-foreground">Buttlr</h1>
             </div>
-            <p className="text-muted-foreground">An AI Workforce Operating System.</p>
+            <p className="text-sm leading-5 text-muted-foreground">
+              An AI Workforce Operating System.
+            </p>
           </div>
 
           {firebaseMode ? (
             firebaseAvailable ? (
               <form onSubmit={handleFirebaseSubmit} className="space-y-5" noValidate>
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-foreground">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold leading-7 text-foreground">
                     {creating ? "Create your account" : "Sign in"}
                   </h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm leading-5 text-muted-foreground">
                     {creating
                       ? "Your account is created in Buttlr's Firebase project."
                       : "Use the account your organization gave you."}
@@ -235,15 +231,15 @@ export function LoginPage() {
                   </Field>
                 ) : null}
 
-                <Button type="submit" className="w-full" loading={signingIn}>
+                <Button type="submit" className="w-full sm:max-w-xs" loading={signingIn}>
                   {creating ? "Create account" : "Sign in"}
-                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+                  <ArrowRight className="h-4 w-4" aria-hidden />
                 </Button>
 
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full"
+                  className="w-full sm:max-w-xs"
                   onClick={() => void handleGoogle()}
                   disabled={signingIn}
                 >
@@ -276,9 +272,9 @@ export function LoginPage() {
             )
           ) : devLoginEnabled ? (
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold text-foreground">Sign in</h2>
-                <p className="text-sm text-muted-foreground">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold leading-7 text-foreground">Sign in</h2>
+                <p className="text-sm leading-5 text-muted-foreground">
                   Use any email address. We will create your account the first time.
                 </p>
               </div>
@@ -312,9 +308,14 @@ export function LoginPage() {
                 />
               </Field>
 
-              <Button type="submit" className="w-full" loading={signingIn} disabled={seeding}>
+              <Button
+                type="submit"
+                className="w-full sm:max-w-xs"
+                loading={signingIn}
+                disabled={seeding}
+              >
                 Continue
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+                <ArrowRight className="h-4 w-4" aria-hidden />
               </Button>
             </form>
           ) : (
@@ -329,12 +330,15 @@ export function LoginPage() {
           )}
 
           {devLoginEnabled && (
-            <section aria-labelledby="demo-heading" className="space-y-4 rounded-lg border border-border bg-card p-5">
-              <div className="space-y-1">
-                <h3 id="demo-heading" className="text-sm font-semibold text-foreground">
+            <section
+              aria-labelledby="demo-heading"
+              className="space-y-4 rounded-lg border border-border bg-card p-5"
+            >
+              <div className="space-y-2">
+                <h3 id="demo-heading" className="text-sm font-semibold leading-4 text-foreground">
                   Demo
                 </h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm leading-5 text-muted-foreground">
                   Creates the Acme Technologies workspace with a sample team, a Buttlr and past runs.
                   The GitHub token is optional — add one to pull in real repository data.
                 </p>
@@ -359,11 +363,11 @@ export function LoginPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
+                className="w-full sm:max-w-xs"
                 onClick={() => void handleDemo()}
                 disabled={signingIn || seeding}
               >
-                {seeding && <Spinner className="mr-2 h-4 w-4" />}
+                {seeding && <Spinner className="h-4 w-4" />}
                 Set up the Acme Technologies demo
               </Button>
             </section>

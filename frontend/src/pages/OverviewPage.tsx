@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bot,
   CalendarCheck,
+  ChevronRight,
   Clock,
   Plug,
   Timer,
@@ -87,7 +88,10 @@ export function OverviewPage() {
         </Alert>
       )}
 
-      <section aria-label="Key numbers" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section
+        aria-label="Key numbers"
+        className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6"
+      >
         {loading ? (
           ["Active Buttlrs", "Teams", "Members", "Pending approvals", "Runs today", "Time saved"].map(
             (label) => (
@@ -118,8 +122,9 @@ export function OverviewPage() {
               hint="People with access"
               icon={Users}
             />
-            <Link to="/approvals" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Link to="/approvals" className="flex h-full rounded-lg">
               <StatCard
+                className="w-full transition-colors hover:border-ring/40 hover:bg-muted/30"
                 label="Pending approvals"
                 value={data?.approvals_pending ?? 0}
                 hint={
@@ -164,7 +169,31 @@ export function OverviewPage() {
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
-              <Skeleton key={index} className="h-36 w-full rounded-lg" />
+              <div
+                key={index}
+                className="flex flex-col rounded-lg border border-border bg-card p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <Skeleton className="size-10 shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="h-3.5 w-4/5" />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <div className="mt-4 flex items-center gap-4 border-t border-border pt-3">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
             ))}
           </div>
         ) : data && data.buttlrs.length > 0 ? (
@@ -199,7 +228,7 @@ export function OverviewPage() {
         <SectionCard
           title="Recent runs"
           description="The last executions across every Buttlr."
-          className="lg:col-span-3"
+          className="h-full lg:col-span-3"
           actions={
             <Button asChild variant="ghost" size="sm">
               <Link to="/activity">Activity</Link>
@@ -207,18 +236,28 @@ export function OverviewPage() {
           }
         >
           {loading ? (
-            <div className="space-y-3">
+            <ul className="divide-y divide-border">
               {Array.from({ length: 4 }, (_, index) => (
-                <Skeleton key={index} className="h-14 w-full rounded-md" />
+                <li
+                  key={index}
+                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-2"
+                >
+                  <Skeleton className="h-4 w-20 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-1/3" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                  <Skeleton className="hidden h-3 w-20 shrink-0 sm:block" />
+                </li>
               ))}
-            </div>
+            </ul>
           ) : data && data.recent_executions.length > 0 ? (
             <ul className="divide-y divide-border">
               {data.recent_executions.map((execution) => (
                 <li key={execution.id}>
                   <Link
                     to={`/buttlrs/${execution.buttlr_id}`}
-                    className="flex flex-col gap-1 py-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:gap-3 sm:px-2"
+                    className="flex min-h-11 flex-col gap-1 py-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:gap-3 sm:px-2"
                   >
                     <StatusPill status={execution.status} size="sm" />
                     <span className="min-w-0 flex-1">
@@ -251,7 +290,7 @@ export function OverviewPage() {
         <SectionCard
           title="Recent activity"
           description="A record of everything that changed."
-          className="lg:col-span-2"
+          className="h-full lg:col-span-2"
           actions={
             <Button asChild variant="ghost" size="sm">
               <Link to="/activity">View all</Link>
@@ -264,17 +303,20 @@ export function OverviewPage() {
 
       <Link
         to="/integrations"
-        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="flex items-center gap-3">
-          <Plug className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="text-sm text-foreground">
+        <span className="flex min-w-0 items-center gap-3">
+          <Plug className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 truncate text-sm leading-5 text-foreground">
             {data
               ? `${data.integrations_connected}/${data.integrations_total} integrations connected`
               : "Integrations"}
           </span>
         </span>
-        <span className="text-sm font-medium text-primary">Manage</span>
+        <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
+          Manage
+          <ChevronRight className="size-4" aria-hidden />
+        </span>
       </Link>
     </div>
   );

@@ -11,16 +11,19 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.container import Container
+from app.database.repository import Paths
 from app.runtime.executor import ExecutionJob, ResumeJob
 from app.runtime.permissions.engine import AccessContext
 from app.runtime.planner.base import Plan, Planner
 from app.runtime.tools.base import Tool, ToolContext, ToolResult
 from app.runtime.tools.registry import ToolRegistry
+from app.schemas.activity import ChatMessage
 from app.schemas.buttlr import ApprovalPolicy, ApprovalRule, ButtlrCreate
 from app.schemas.enums import (
     ApprovalMode,
     ApprovalStatus,
     ButtlrStatus,
+    ChatRole,
     ExecutionStatus,
     ExecutionTrigger,
     OrgRole,
@@ -122,6 +125,105 @@ def scripted(container: Container, plans: list[Plan]) -> ScriptedPlanner:
 
 async def _resolved(planner: Planner) -> Planner:
     return planner
+
+
+async def test_a_run_records_the_provider_that_served_it(container: Container) -> None:
+    """Per-provider analytics needs to know who actually answered, not what was configured."""
+    tool = EchoTool()
+    principal, organization, access, buttlr = await build_world(container, tool)
+    scripted(container, [Plan.finish("Nothing to do.")])
+    execution = await container.executions.create(
+        organization.id, buttlr, ExecutionTrigger.MANUAL, GOAL, requested_by=principal.user_id
+    )
+    outcome = await container.executor.run(
+        ExecutionJob(
+            organization=organization,
+            buttlr=buttlr,
+            execution=execution,
+            goal=GOAL,
+            trigger=ExecutionTrigger.MANUAL,
+            requested_by=principal.user_id,
+            access=access,
+        )
+    )
+
+    assert outcome.provider == "heuristic", "the deterministic planner served this run"
+    assert outcome.model == "heuristic"
+    overview = await container.analytics.overview(organization.id, days=7)
+    assert [entry.provider for entry in overview.by_model] == ["heuristic"]
+    assert overview.by_model[0].calls == 1
+
+
+async def test_a_chat_run_carries_the_conversation_with_it(container: Container) -> None:
+    """Without this, "and its open issues?" has nothing to attach "its" to."""
+    tool = EchoTool()
+    principal, organization, access, buttlr = await build_world(container, tool)
+    conversation_id = "conversation-1"
+    await container.repo.save(
+        Paths.messages(organization.id, buttlr.id, conversation_id),
+        ChatMessage(
+            id="m1",
+            organization_id=organization.id,
+            buttlr_id=buttlr.id,
+            conversation_id=conversation_id,
+            role=ChatRole.USER,
+            content="Tell me about the Pravah project",
+        ).model_dump(mode="python"),
+    )
+    await container.repo.save(
+        Paths.messages(organization.id, buttlr.id, conversation_id),
+        ChatMessage(
+            id="m2",
+            organization_id=organization.id,
+            buttlr_id=buttlr.id,
+            conversation_id=conversation_id,
+            role=ChatRole.ASSISTANT,
+            content="Pravah is a payments service with three open pull requests.",
+        ).model_dump(mode="python"),
+    )
+    await container.repo.save(
+        Paths.messages(organization.id, buttlr.id, conversation_id),
+        ChatMessage(
+            id="m3",
+            organization_id=organization.id,
+            buttlr_id=buttlr.id,
+            conversation_id=conversation_id,
+            role=ChatRole.USER,
+            content="What about its open issues?",
+        ).model_dump(mode="python"),
+    )
+
+    planner = ScriptedPlanner([Plan.finish("Answered.")])
+    container.executor._select_planner = (  # type: ignore[assignment]
+        lambda _organization_id, _buttlr, p=planner: _resolved(p)
+    )
+    execution = await container.executions.create(
+        organization.id,
+        buttlr,
+        ExecutionTrigger.CHAT,
+        "What about its open issues?",
+        requested_by=principal.user_id,
+        conversation_id=conversation_id,
+    )
+    await container.executor.run(
+        ExecutionJob(
+            organization=organization,
+            buttlr=buttlr,
+            execution=execution,
+            goal="What about its open issues?",
+            trigger=ExecutionTrigger.CHAT,
+            requested_by=principal.user_id,
+            access=access,
+            conversation_id=conversation_id,
+        )
+    )
+
+    prompt = planner.requests[0].system_prompt
+    assert "Pravah is a payments service" in prompt, "the earlier answer must be in context"
+    assert "Tell me about the Pravah project" in prompt
+    assert prompt.count("What about its open issues?") == 0, (
+        "the current message is the goal, not history"
+    )
 
 
 async def test_a_repeated_identical_call_is_not_run_or_approved_twice(

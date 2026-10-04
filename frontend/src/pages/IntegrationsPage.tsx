@@ -21,7 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyButton } from "@/components/common/CopyButton";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -86,10 +85,14 @@ function ScopeChoice({
       <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Who can use this account
       </legend>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label
           htmlFor={`${idPrefix}-personal`}
-          className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2.5"
+          className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+            value === "personal"
+              ? "border-primary bg-primary/5 ring-1 ring-primary"
+              : "border-border hover:bg-muted"
+          }`}
         >
           <input
             id={`${idPrefix}-personal`}
@@ -100,8 +103,8 @@ function ScopeChoice({
             onChange={() => onChange("personal")}
           />
           <span className="min-w-0">
-            <span className="block text-sm font-medium">Just me</span>
-            <span className="block text-xs text-muted-foreground">
+            <span className="block text-sm font-medium leading-5">Just me</span>
+            <span className="block text-xs leading-4 text-muted-foreground">
               Connected to your account. Only your Buttlrs use it.
             </span>
           </span>
@@ -109,7 +112,11 @@ function ScopeChoice({
         {canShare ? (
           <label
             htmlFor={`${idPrefix}-organization`}
-            className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2.5"
+            className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              value === "organization"
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border hover:bg-muted"
+            }`}
           >
             <input
               id={`${idPrefix}-organization`}
@@ -120,8 +127,8 @@ function ScopeChoice({
               onChange={() => onChange("organization")}
             />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">Everyone in the workspace</span>
-              <span className="block text-xs text-muted-foreground">
+              <span className="block text-sm font-medium leading-5">Everyone in the workspace</span>
+              <span className="block text-xs leading-4 text-muted-foreground">
                 One shared account every member&apos;s Buttlrs can use. Owners and admins manage it.
               </span>
             </span>
@@ -236,22 +243,29 @@ function ConnectDialogBody({
             <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {provider === "github" ? "Repositories" : "Resources"}
             </legend>
-            <ul className="mt-2 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+            <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto pr-1">
               {resources.map((resource) => (
-                <li key={resource.id} className="flex items-center gap-2">
-                  <input
-                    id={`connect-resource-${resource.id}`}
-                    type="checkbox"
-                    className="size-5 shrink-0 rounded border-border accent-primary"
-                    checked={selected.includes(resource.id)}
-                    onChange={() => toggle(resource.id)}
-                  />
-                  <Label htmlFor={`connect-resource-${resource.id}`} className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{resource.name}</span>
-                    {resource.kind ? (
-                      <span className="block truncate text-xs text-muted-foreground">{resource.kind}</span>
-                    ) : null}
-                  </Label>
+                <li key={resource.id}>
+                  <label
+                    htmlFor={`connect-resource-${resource.id}`}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted"
+                  >
+                    <input
+                      id={`connect-resource-${resource.id}`}
+                      type="checkbox"
+                      className="size-5 shrink-0 rounded border-border accent-primary"
+                      checked={selected.includes(resource.id)}
+                      onChange={() => toggle(resource.id)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm leading-5">{resource.name}</span>
+                      {resource.kind ? (
+                        <span className="block truncate text-xs leading-4 text-muted-foreground">
+                          {resource.kind}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
                 </li>
               ))}
             </ul>
@@ -461,7 +475,7 @@ function OAuthAppForm({
   return (
     <div className="rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h4 className="text-sm font-semibold">{name}</h4>
+        <h3 className="text-sm font-semibold leading-5">{name}</h3>
         {client?.configured ? (
           <Badge tone={hasWorkspaceApp ? "primary" : "muted"}>
             {hasWorkspaceApp ? "This workspace's own app" : "This deployment's app"}
@@ -472,24 +486,24 @@ function OAuthAppForm({
       </div>
 
       {client?.configured && !hasWorkspaceApp ? (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs leading-4 text-muted-foreground">
           Using this deployment&apos;s app
           {client.masked_client_id ? ` (${client.masked_client_id})` : ""}. Register your own below
           to use a workspace app instead.
         </p>
       ) : client?.configured ? (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs leading-4 text-muted-foreground">
           Saved for this workspace
           {client.masked_client_id ? ` (${client.masked_client_id})` : ""}. The secret is stored
           encrypted and never shown again.
         </p>
       ) : (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs leading-4 text-muted-foreground">
           {name} sign-in needs an OAuth app. Without one, {name} cannot be connected here.
         </p>
       )}
 
-      <div className="mt-3 space-y-3">
+      <div className="mt-4 space-y-4">
         <Field
           label="Redirect URI"
           htmlFor={`oauth-redirect-${provider}`}
@@ -542,7 +556,7 @@ function OAuthAppForm({
         </Field>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
           type="button"
           size="sm"
@@ -612,7 +626,7 @@ function OAuthAppsSection({
       }
     >
       <div id="oauth-apps-body" hidden={!open} className="space-y-4">
-        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs leading-4 text-muted-foreground">
           <p className="font-medium text-foreground">How to get these two values</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>
@@ -635,13 +649,13 @@ function OAuthAppsSection({
           </p>
         </div>
         {clients.isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {OAUTH_PROVIDERS.map((provider) => (
-              <Skeleton key={provider} className="h-56 w-full rounded-lg" />
+              <Skeleton key={provider} className="h-96 w-full rounded-lg" />
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {OAUTH_PROVIDERS.map((provider) => (
               <OAuthAppForm
                 key={provider}
@@ -742,6 +756,11 @@ export function IntegrationsPage() {
   const available = (catalogue.data ?? []).filter((entry) => !connectedProviders.has(entry.provider));
   const sharedConnections = connections.filter((item) => item.scope !== "personal");
   const personalConnections = connections.filter((item) => item.scope === "personal");
+  // The empty state's one action: the first catalogue entry the connect dialog can actually open
+  // (Google goes through OAuth instead, and unlaunched entries have nothing to connect).
+  const firstConnectable =
+    available.find((entry) => entry.provider !== "google" && entry.available && !entry.coming_soon) ??
+    null;
 
   const startGoogleOAuth = async () => {
     if (!organizationId) return;
@@ -860,6 +879,18 @@ export function IntegrationsPage() {
                 icon={PlugZap}
                 title="Nothing connected yet"
                 description="Connect an account below. Buttlrs that use these tools cannot run until one is connected."
+                action={
+                  firstConnectable ? (
+                    <Button
+                      type="button"
+                      onClick={() => setConnecting(firstConnectable)}
+                      className="min-h-11 sm:min-h-0"
+                    >
+                      <Plug aria-hidden="true" className="mr-1.5 size-4" />
+                      Connect {firstConnectable.name}
+                    </Button>
+                  ) : null
+                }
               />
             </SectionCard>
           ) : null}
@@ -894,7 +925,7 @@ export function IntegrationsPage() {
               <ul className="grid gap-4 lg:grid-cols-2">
                 {Array.from({ length: 2 }).map((_, index) => (
                   <li key={index}>
-                    <Skeleton className="h-40 w-full rounded-lg" />
+                    <Skeleton className="h-52 w-full rounded-lg" />
                   </li>
                 ))}
               </ul>
@@ -914,24 +945,26 @@ export function IntegrationsPage() {
                       className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
                     >
                       <header className="flex items-start gap-3">
-                        <span aria-hidden="true" className="text-2xl">
+                        <span aria-hidden="true" className="text-2xl leading-none">
                           {entry.logo}
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="truncate text-sm font-semibold">{entry.name}</h3>
+                            <h3 className="truncate text-sm font-semibold leading-5">{entry.name}</h3>
                             <Badge tone="muted">{entry.category}</Badge>
                             {entry.coming_soon ? <Badge tone="warning">Coming soon</Badge> : null}
                             {!entry.coming_soon && !entry.available ? (
                               <Badge tone="muted">Unavailable</Badge>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{entry.description}</p>
+                          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                            {entry.description}
+                          </p>
                         </div>
                       </header>
 
                       {entry.tools.length > 0 ? (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs leading-4 text-muted-foreground">
                           Unlocks {entry.tools.length} {entry.tools.length === 1 ? "tool" : "tools"}:{" "}
                           {entry.tools.slice(0, 4).join(", ")}
                           {entry.tools.length > 4 ? ", …" : ""}
@@ -998,14 +1031,14 @@ export function IntegrationsPage() {
               </ul>
             )}
 
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="mt-4 text-xs leading-4 text-muted-foreground">
               Connections are encrypted at rest and scoped to this organization. The API reference for
               these endpoints is at{" "}
               <a
                 href="/docs"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-0.5 font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
               >
                 /docs
                 <ExternalLink aria-hidden="true" className="size-3" />

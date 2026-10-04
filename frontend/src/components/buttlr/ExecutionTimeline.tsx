@@ -53,26 +53,19 @@ function StepRow({ step }: { step: ExecutionStep }) {
       <span className="relative flex w-6 shrink-0 justify-center pt-1">
         <TypeIcon
           aria-hidden="true"
-          className={cn(
-            "size-4",
-            failed ? "text-destructive" : "text-muted-foreground",
-          )}
+          className={cn("size-4", failed ? "text-destructive" : "text-muted-foreground")}
         />
       </span>
 
-      <div className="min-w-0 flex-1 pb-4">
+      <div className="min-w-0 flex-1 pb-4 last:pb-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-medium">{step.title}</span>
           {step.tool ? (
-            <Badge tone="outline" className="font-normal">
+            <Badge tone="outline" className="max-w-full truncate font-normal">
               {toolLabel(step.tool)}
             </Badge>
           ) : null}
-          <span
-            className={cn(
-              "ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground",
-            )}
-          >
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             <StatusIcon
               aria-hidden="true"
               className={cn(
@@ -83,14 +76,19 @@ function StepRow({ step }: { step: ExecutionStep }) {
               )}
             />
             <span className="capitalize">{step.status}</span>
-            {step.duration_ms != null ? ` · ${formatDuration(step.duration_ms)}` : ""}
+            {step.duration_ms != null ? (
+              <>
+                {" · "}
+                <span className="tabular-nums">{formatDuration(step.duration_ms)}</span>
+              </>
+            ) : null}
           </span>
         </div>
 
         {detail ? (
           <p
             className={cn(
-              "mt-1 break-words text-xs text-muted-foreground",
+              "mt-1 text-xs leading-4 break-words text-muted-foreground",
               preformatted ? "whitespace-pre-wrap" : "truncate",
             )}
           >
@@ -101,7 +99,7 @@ function StepRow({ step }: { step: ExecutionStep }) {
         {step.approval_id ? (
           <Link
             to="/approvals"
-            className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="mt-1.5 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline sm:min-h-0"
           >
             <ShieldQuestion aria-hidden="true" className="size-3" />
             View approval request
@@ -123,7 +121,7 @@ export function ExecutionTimeline({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
         <StatusPill status={execution.status} size="sm" />
         {live ? (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
@@ -131,26 +129,25 @@ export function ExecutionTimeline({
             Live
           </span>
         ) : null}
-        <span className="text-xs text-muted-foreground">{model || "Model not recorded"}</span>
+        <span className="min-w-0 truncate text-xs text-muted-foreground">
+          {model || "Model not recorded"}
+        </span>
         {execution.duration_ms != null ? (
-          <span className="text-xs text-muted-foreground">
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
             {formatDuration(execution.duration_ms)}
           </span>
         ) : null}
       </div>
 
-      <p className="text-sm">{execution.goal}</p>
+      <p className="text-sm leading-5">{execution.goal}</p>
 
       {execution.steps.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm leading-5 text-muted-foreground">
           No steps recorded yet. {live ? "They appear here as the run progresses." : ""}
         </p>
       ) : (
         <ol className="relative">
-          <span
-            aria-hidden="true"
-            className="absolute bottom-2 left-3 top-2 w-px bg-border"
-          />
+          <span aria-hidden="true" className="absolute bottom-2 left-3 top-2 w-px bg-border" />
           {execution.steps.map((step) => (
             <StepRow key={`${step.index}-${step.type}`} step={step} />
           ))}
@@ -158,28 +155,28 @@ export function ExecutionTimeline({
       )}
 
       {execution.output ? (
-        <div className="rounded-md border border-border bg-muted/40 p-3">
-          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Output
           </p>
-          <p className="whitespace-pre-wrap break-words text-sm">{execution.output}</p>
+          <p className="text-sm leading-5 break-words whitespace-pre-wrap">{execution.output}</p>
         </div>
       ) : null}
 
       {execution.error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
-          <p className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-destructive">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+          <p className="mb-1.5 inline-flex items-center gap-1 text-xs font-medium text-destructive">
             <AlertTriangle aria-hidden="true" className="size-3" />
             Error
           </p>
-          <p className="whitespace-pre-wrap break-words text-sm">{execution.error}</p>
+          <p className="text-sm leading-5 break-words whitespace-pre-wrap">{execution.error}</p>
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
-        <span>{formatTokens(execution.usage.total_tokens)} tokens</span>
-        <span>{formatCost(execution.usage.estimated_cost_usd)}</span>
-        <span>{execution.usage.calls} model calls</span>
+        <span className="tabular-nums">{formatTokens(execution.usage.total_tokens)} tokens</span>
+        <span className="tabular-nums">{formatCost(execution.usage.estimated_cost_usd)}</span>
+        <span className="tabular-nums">{execution.usage.calls} model calls</span>
       </div>
     </div>
   );

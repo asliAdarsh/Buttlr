@@ -10,6 +10,10 @@ export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   action?: React.ReactNode;
 }
 
+/**
+ * Nothing here yet. Says what the area is for and offers the one action that
+ * fills it.
+ */
 export function EmptyState({
   icon: Icon,
   title,
@@ -21,19 +25,24 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-6 py-10 text-center",
+        "flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center",
         className,
       )}
       {...props}
     >
       {Icon ? (
-        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <Icon className="size-5" aria-hidden="true" />
+        <span
+          aria-hidden="true"
+          className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        >
+          <Icon className="size-5" />
         </span>
       ) : null}
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        {description ? (
+          <p className="mx-auto max-w-md text-sm leading-5 text-muted-foreground">{description}</p>
+        ) : null}
       </div>
       {action}
     </div>

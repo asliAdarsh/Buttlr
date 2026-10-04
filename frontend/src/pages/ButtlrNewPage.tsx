@@ -1,16 +1,25 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  CalendarClock,
   Check,
+  ChevronDown,
+  Cpu,
   Link2,
   Loader2,
+  MapPinned,
   Plus,
+  ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
+  Users,
   Wand2,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Field } from "@/components/common/Field";
 import { SectionCard } from "@/components/common/SectionCard";
@@ -48,6 +58,7 @@ import {
 } from "@/lib/queries";
 import { DEPARTMENTS, PERMISSION_LEVELS, RISK_LEVELS, SCHEDULE_PRESETS } from "@/lib/constants";
 import { humanize, toolLabel } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type {
   ApprovalMode,
   ApprovalPolicy,
@@ -297,7 +308,7 @@ export function ScheduleEditor({
         />
       </div>
 
-      <p className="flex items-center gap-2 text-sm">
+      <p className="flex flex-wrap items-center gap-2 text-sm">
         <ScheduleBadge schedule={schedule} />
         <span className="text-xs text-muted-foreground">{schedule.timezone}</span>
       </p>
@@ -437,6 +448,10 @@ const MODE_OPTIONS: { value: ApprovalMode; label: string }[] = [
   { value: "deny", label: "Never allow" },
 ];
 
+function modeLabel(mode: ApprovalMode): string {
+  return MODE_OPTIONS.find((option) => option.value === mode)?.label ?? humanize(mode);
+}
+
 function PolicyEditor({
   policy,
   onChange,
@@ -561,7 +576,7 @@ function PolicyEditor({
   );
 }
 
-/* ------------------------------------------------------------------ the wizard */
+/* ------------------------------------------------------------------ copy */
 
 const EXAMPLES = [
   {
@@ -592,7 +607,12 @@ const STEPS = [
   { value: 3, label: "Deploy" },
 ] as const;
 
-function Stepper({ step }: { step: 1 | 2 | 3 }) {
+type Step = 1 | 2 | 3;
+
+const plural = (count: number, one: string, many = `${one}s`) =>
+  `${count} ${count === 1 ? one : many}`;
+
+function Stepper({ step }: { step: Step }) {
   return (
     <ol className="flex items-center gap-2" aria-label="Progress">
       {STEPS.map((item, index) => {
@@ -602,20 +622,20 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             <span className="flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className={
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                   state === "todo"
-                    ? "flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-xs font-medium text-muted-foreground"
-                    : "flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
-                }
+                    ? "border border-border text-muted-foreground"
+                    : "bg-primary font-semibold text-primary-foreground",
+                )}
               >
                 {state === "done" ? <Check className="size-4" /> : item.value}
               </span>
               <span
-                className={
-                  state === "todo"
-                    ? "text-sm text-muted-foreground"
-                    : "text-sm font-medium text-foreground"
-                }
+                className={cn(
+                  "truncate text-sm",
+                  state === "todo" ? "text-muted-foreground" : "font-medium text-foreground",
+                )}
               >
                 {item.label}
               </span>
@@ -633,16 +653,100 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 
-function SummaryRow({ label, children }: { label: string; children: React.ReactNode }) {
+/* ------------------------------------------------------------------ collapsible section */
+
+type SectionId =
+  | "rationale"
+  | "identity"
+  | "tools"
+  | "scope"
+  | "schedule"
+  | "model"
+  | "permissions"
+  | "approvals"
+  | "refine";
+
+/**
+ * One review section. The body stays mounted so an editor never loses its own state to a
+ * collapse; the header carries a one-line summary so a closed section still says what it holds.
+ */
+function ReviewSection({
+  id,
+  title,
+  summary,
+
+  icon: Icon,
+  open,
+  onToggle,
+  aside,
+  children,
+}: {
+  id: SectionId;
+  title: string;
+  summary: string;
+  icon: LucideIcon;
+  open: boolean;
+  onToggle: () => void;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "overflow-hidden rounded-lg border bg-card shadow-sm transition-colors",
+        open ? "border-border" : "border-border hover:border-primary/40",
+      )}
+    >
+      <h3>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={`review-${id}-panel`}
+          onClick={onToggle}
+          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-3 text-left"
+        >
+          <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-foreground">{title}</span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{summary}</span>
+          </span>
+          {aside}
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      </h3>
+      <div
+        id={`review-${id}-panel`}
+        hidden={!open}
+        className="space-y-4 border-t border-border px-4 py-4"
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SectionNote({ children }: { children: ReactNode }) {
+  return <p className="text-xs text-muted-foreground">{children}</p>;
+}
+
+function SummaryRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-0.5 border-b border-border py-2 last:border-b-0 sm:grid-cols-3 sm:gap-3">
       <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground sm:pt-0.5">
         {label}
       </dt>
-      <dd className="min-w-0 text-sm sm:col-span-2">{children}</dd>
+      <dd className="min-w-0 break-words text-sm sm:col-span-2">{children}</dd>
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ the wizard */
 
 export function ButtlrNewPage() {
   const navigate = useNavigate();
@@ -663,7 +767,7 @@ export function ButtlrNewPage() {
   const deployButtlr = useDeployButtlr(organizationId ?? "");
   const runButtlr = useRunButtlr(organizationId ?? "");
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<Step>(1);
   const [prompt, setPrompt] = useState("");
   const [teamId, setTeamId] = useState("");
   const [draft, setDraft] = useState<ButtlrCreate | null>(null);
@@ -673,10 +777,15 @@ export function ButtlrNewPage() {
   const [refineText, setRefineText] = useState("");
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [testExecution, setTestExecution] = useState<Execution | null>(null);
+  const [open, setOpen] = useState<Partial<Record<SectionId, boolean>>>({ identity: true });
+
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const live = useExecutionStream(organizationId, testExecution?.id ?? null, testExecution);
 
   const defaultTimezone = meta.data?.default_timezone || "UTC";
+
+  const toggle = (id: SectionId) => setOpen((current) => ({ ...current, [id]: !current[id] }));
 
   const teamOptions = useMemo(
     () => [
@@ -785,6 +894,8 @@ export function ButtlrNewPage() {
       setMissing(response.missing);
       setCreatedId(null);
       setTestExecution(null);
+      // The builder's own choices are the review starting point: identity open, the rest folded away.
+      setOpen({ identity: true });
       setStep(2);
     } catch {
       // The error is rendered below; the prompt is deliberately left untouched.
@@ -853,14 +964,6 @@ export function ButtlrNewPage() {
         setCreatedId(created.id);
       }
 
-      if (missingIntegrations.length > 0) {
-        toast.success("Saved as a draft", {
-          description: `Connect ${missingAppNames.join(", ")} before deploying.`,
-        });
-        navigate(`/buttlrs/${id}`);
-        return;
-      }
-
       if (thenDeploy) {
         await deployButtlr.mutateAsync(id);
         toast.success(`${name} is deployed`);
@@ -869,6 +972,7 @@ export function ButtlrNewPage() {
       }
       navigate(`/buttlrs/${id}`);
     } catch (error) {
+      // Every edit stays exactly as the user left it; only the request failed.
       toast.error(error instanceof Error ? error.message : "The Buttlr could not be created.");
     }
   };
@@ -895,155 +999,264 @@ export function ButtlrNewPage() {
     }
   };
 
-  /* ------------------------------------------------------------ step 1 */
+  /* ------------------------------------------------------------ section summaries */
 
-  const renderDescribe = () => (
-    <div className="space-y-6">
-      <SectionCard
-        title="Describe the job"
-        description="Plain language is enough. Write what this Buttlr should do, where it should work and when it should run."
-      >
-        <div className="space-y-4">
-          <Field
-            label="What should this Buttlr do?"
-            htmlFor="prompt"
-            required
-            hint="Ten characters or more. Include the systems it should use and how often it should run."
+  const selectedTools = draft?.tools ?? [];
+  const scopeKeys = Object.keys(draft?.scope ?? {});
+
+  const toolSummary = useMemo(() => {
+    const count = selectedTools.length;
+    if (count === 0) return "No tools selected";
+    const appList = requiredProviders.map((provider) => appNames.get(provider) ?? humanize(provider));
+    return appList.length > 0
+      ? `${plural(count, "tool")} · ${appList.join(", ")}`
+      : plural(count, "tool");
+  }, [selectedTools, requiredProviders, appNames]);
+
+  const scopeSummary = useMemo(() => {
+    if (scopeKeys.length === 0) return "Everything the connected accounts allow";
+    return `${plural(scopeKeys.length, "app")} narrowed down`;
+  }, [scopeKeys]);
+
+  const scheduleSummary = schedule.enabled
+    ? describeSchedule(schedule)
+    : `${describeSchedule(schedule)} · off`;
+
+  const modelSummary =
+    model.provider === "auto" || model.provider === ""
+      ? "Auto (platform default)"
+      : `${humanize(model.provider)} · ${model.name}`;
+
+  const permissionSummary =
+    (draft?.permissions ?? []).length === 0
+      ? "Only you, as admin"
+      : plural((draft?.permissions ?? []).length, "grant");
+
+  const approvalSummary = [
+    policy.rules.length === 0 ? "No extra rules" : plural(policy.rules.length, "approval rule"),
+    modeLabel(policy.default_mode),
+  ].join(" · ");
+
+  const rationaleSummary = [
+    assumptions.length === 0 ? "Nothing assumed" : plural(assumptions.length, "assumption"),
+    missing.length === 0 ? "nothing open" : plural(missing.length, "open question"),
+  ].join(" · ");
+
+  /* ------------------------------------------------------------ the sticky bar */
+
+  const deployBlocked = !nameValid || missingIntegrations.length > 0;
+  const deployReason = !nameValid
+    ? "Give this Buttlr a name of at least two characters before deploying."
+    : `Connect ${missingAppNames.join(", ")} before deploying. Creating a draft works right now.`;
+
+  const deployButton = (
+    <Button
+      type="button"
+      size="lg"
+      className="col-span-2 w-full sm:col-auto sm:w-auto"
+      onClick={() => void handleCreate(true)}
+      loading={deployButtlr.isPending}
+      disabled={deployBlocked || busy}
+    >
+      Create &amp; deploy
+    </Button>
+  );
+
+  const actionBar = (
+    <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:rounded-lg lg:border lg:px-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <p className="text-xs text-muted-foreground">
+          {missingIntegrations.length > 0
+            ? `Connect ${missingAppNames.join(", ")} to deploy. A test run works once it is saved.`
+            : createdId
+              ? "Saved as a draft. Creating again will not overwrite it — change it from its own page."
+              : "Creating saves this configuration as a draft you can edit later."}
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            onClick={() => void handleTestRun()}
+            loading={runButtlr.isPending}
+            disabled={busy}
           >
-            <Textarea
-              id="prompt"
-              rows={7}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Monitor our selected GitHub repositories every morning. Analyze new pull requests for bugs, security issues, missing tests and unresolved review comments. Summarize the important findings. If a critical issue is found, prepare a Jira ticket and ask the Engineering Lead for approval before creating it."
-            />
-          </Field>
-
-          <Field label="Team" htmlFor="draft-team" hint="Optional. Scopes the work to one team.">
-            <Select
-              id="draft-team"
-              value={teamId}
-              onValueChange={setTeamId}
-              options={teamOptions}
-            />
-          </Field>
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Start from an example</p>
-            <div className="flex flex-wrap gap-2">
-              {EXAMPLES.map((example) => (
-                <Button
-                  key={example.label}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPrompt(example.prompt)}
+            <Sparkles aria-hidden="true" />
+            Test run
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => void handleCreate(false)}
+            loading={createButtlr.isPending}
+            disabled={busy}
+          >
+            Create draft
+          </Button>
+          {deployBlocked ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="col-span-2 inline-flex w-full sm:col-auto"
+                  aria-label={`Create and deploy unavailable: ${deployReason}`}
                 >
-                  {example.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {draftButtlr.isPending ? (
-            <div
-              role="status"
-              className="flex items-start gap-3 rounded-md border border-border bg-muted/60 p-3"
-            >
-              <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Reading your request</p>
-                <p className="text-sm text-muted-foreground">
-                  Working out the name, role, tools, scope, schedule and approval policy. This takes a
-                  few seconds.
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {draftButtlr.isError ? <ErrorNote error={draftButtlr.error} /> : null}
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={() => void handleGenerate()}
-              loading={draftButtlr.isPending}
-              disabled={prompt.trim().length < 10}
-            >
-              <Wand2 aria-hidden="true" />
-              Generate configuration
-            </Button>
-            <Button asChild variant="ghost">
-              <Link to="/buttlrs">
-                <ArrowLeft aria-hidden="true" />
-                Cancel
-              </Link>
-            </Button>
-          </div>
+                  {deployButton}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{deployReason}</TooltipContent>
+            </Tooltip>
+          ) : (
+            deployButton
+          )}
         </div>
-      </SectionCard>
+      </div>
     </div>
   );
+
+  /* ------------------------------------------------------------ step 1 */
+
+  const renderDescribe = () => {
+    const tooShort = prompt.trim().length < 10;
+    return (
+      <div className="space-y-5">
+        <Field
+          label="What should this Buttlr do?"
+          htmlFor="prompt"
+          required
+          hint="Write what it should do, which systems it should use and how often it should run. Ten characters or more."
+        >
+          <Textarea
+            id="prompt"
+            ref={promptRef}
+            rows={10}
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            className="min-h-[13rem] text-base sm:text-base"
+            placeholder="Monitor our selected GitHub repositories every morning. Analyze new pull requests for bugs, security issues, missing tests and unresolved review comments. Summarize the important findings. If a critical issue is found, prepare a Jira ticket and ask the Engineering Lead for approval before creating it."
+          />
+        </Field>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Start from an example</p>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((example) => (
+              <Button
+                key={example.label}
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPrompt(example.prompt);
+                  promptRef.current?.focus();
+                }}
+              >
+                {example.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Team" htmlFor="draft-team" hint="Optional. Scopes the work to one team.">
+          <Select id="draft-team" value={teamId} onValueChange={setTeamId} options={teamOptions} />
+        </Field>
+
+        {draftButtlr.isPending ? (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-md border border-border bg-muted/60 p-3"
+          >
+            <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Reading your request</p>
+              <p className="text-sm text-muted-foreground">
+                Working out the name, role, tools, scope, schedule and approval policy. This takes a
+                few seconds.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {draftButtlr.isError ? <ErrorNote error={draftButtlr.error} /> : null}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="lg"
+            onClick={() => void handleGenerate()}
+            loading={draftButtlr.isPending}
+            disabled={tooShort}
+          >
+            <Wand2 aria-hidden="true" />
+            Generate configuration
+          </Button>
+          <Button asChild variant="ghost" size="lg">
+            <Link to="/buttlrs">
+              <ArrowLeft aria-hidden="true" />
+              Cancel
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   /* ------------------------------------------------------------ step 2 */
 
   const renderReview = () => {
     if (!draft) return null;
     return (
-      <div className="space-y-6">
-        <SectionCard
-          title="What I assumed"
-          description={`Written by the builder from your description. Everything below is editable.`}
+      <div className="space-y-3">
+        <ReviewSection
+          id="rationale"
+          title="Why it looks like this"
+          summary={rationaleSummary}
+          icon={Sparkles}
+          open={Boolean(open.rationale)}
+          onToggle={() => toggle("rationale")}
         >
-          <div className="space-y-3 text-sm">
-            {rationale ? <p className="text-muted-foreground">{rationale}</p> : null}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <p className="font-medium">What I assumed</p>
-                {assumptions.length === 0 ? (
-                  <p className="text-muted-foreground">Nothing assumed beyond your description.</p>
-                ) : (
-                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-                    {assumptions.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <p className="font-medium">What is still open</p>
-                {missing.length === 0 ? (
-                  <p className="text-muted-foreground">Nothing outstanding.</p>
-                ) : (
-                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-                    {missing.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+          <SectionNote>
+            Written by the builder from your description. Everything below is editable.
+          </SectionNote>
+          {rationale ? <p className="text-sm text-muted-foreground">{rationale}</p> : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">What was assumed</p>
+              {assumptions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nothing assumed beyond your description.
+                </p>
+              ) : (
+                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {assumptions.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">What is still open</p>
+              {missing.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing outstanding.</p>
+              ) : (
+                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {missing.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
-        </SectionCard>
+        </ReviewSection>
 
-        {missingIntegrations.length > 0 ? (
-          <Alert
-            tone="warning"
-            title={`${missingAppNames.join(", ")} ${missingAppNames.length === 1 ? "is" : "are"} not connected yet`}
-            icon={<Link2 className="size-4" />}
-          >
-            <span>
-              This configuration uses {missingAppNames.join(", ")}. You can still create it now — it
-              stays a draft until{" "}
-              <Link to="/integrations" className="font-medium underline underline-offset-4">
-                Open integrations
-              </Link>
-              .
-            </span>
-          </Alert>
-        ) : null}
-
-        <SectionCard title="Who this Buttlr is" description="Name, avatar, role and what it is for.">
+        <ReviewSection
+          id="identity"
+          title="Identity"
+          summary={`${draft.name || "Unnamed"} · ${draft.role || "AI Assistant"}`}
+          icon={Users}
+          open={Boolean(open.identity)}
+          onToggle={() => toggle("identity")}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name" htmlFor="draft-name" required>
               <Input
@@ -1076,11 +1289,12 @@ export function ButtlrNewPage() {
                     aria-checked={draft.avatar === emoji}
                     aria-label={`Avatar ${emoji}`}
                     onClick={() => update({ avatar: emoji })}
-                    className={
+                    className={cn(
+                      "flex size-11 items-center justify-center rounded-full border text-xl transition-colors hover:bg-accent",
                       draft.avatar === emoji
-                        ? "flex size-9 items-center justify-center rounded-full border-2 border-primary text-lg"
-                        : "flex size-9 items-center justify-center rounded-full border border-border text-lg transition-colors hover:bg-accent"
-                    }
+                        ? "border-2 border-primary"
+                        : "border border-border",
+                    )}
                   >
                     {emoji}
                   </button>
@@ -1167,7 +1381,6 @@ export function ButtlrNewPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={() =>
                     update({ responsibilities: [...(draft.responsibilities ?? []), ""] })
                   }
@@ -1192,12 +1405,28 @@ export function ButtlrNewPage() {
               />
             </Field>
           </div>
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
-          title="What it can use"
-          description="Only the apps connected to this workspace are listed. Risk and permission come from the catalogue."
+        <ReviewSection
+          id="tools"
+          title="Apps and work"
+          summary={toolSummary}
+          icon={Wrench}
+          open={Boolean(open.tools)}
+          onToggle={() => toggle("tools")}
+          aside={
+            detachedTools.length > 0 ? (
+              <Badge tone="warning" className="shrink-0">
+                {plural(detachedTools.length, "tool")} blocked
+              </Badge>
+            ) : undefined
+          }
         >
+          <SectionNote>
+            Only apps connected to this workspace are listed. The builder preselected what it
+            proposed; everything else is left untouched until you pick it. Risk and permission come
+            from the catalogue.
+          </SectionNote>
           <ToolPicker
             tools={availableTools}
             detachedTools={detachedTools}
@@ -1206,12 +1435,17 @@ export function ButtlrNewPage() {
             value={draft.tools ?? []}
             onChange={(next) => update({ tools: next })}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
+        <ReviewSection
+          id="scope"
           title="Where it works"
-          description="Pick exactly which repositories and projects it may touch."
+          summary={scopeSummary}
+          icon={MapPinned}
+          open={Boolean(open.scope)}
+          onToggle={() => toggle("scope")}
         >
+          <SectionNote>Pick exactly which repositories and projects it may touch.</SectionNote>
           <ScopeEditor
             scope={draft.scope ?? {}}
             onChange={(next) => update({ scope: next })}
@@ -1219,98 +1453,181 @@ export function ButtlrNewPage() {
             apps={apps}
             loading={appsAreLoading}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard title="When it runs" description="Pick a rhythm in plain words.">
+        <ReviewSection
+          id="schedule"
+          title="When it runs"
+          summary={scheduleSummary}
+          icon={CalendarClock}
+          open={Boolean(open.schedule)}
+          onToggle={() => toggle("schedule")}
+        >
           <ScheduleEditor
             value={schedule}
             defaultTimezone={defaultTimezone}
             onChange={(next) => update({ schedule: next })}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
+        <ReviewSection
+          id="model"
           title="Model"
-          description="Auto uses the organization default. Name a provider only when you need a specific one."
+          summary={modelSummary}
+          icon={Cpu}
+          open={Boolean(open.model)}
+          onToggle={() => toggle("model")}
         >
+          <SectionNote>
+            Auto uses the platform default. Name a provider only when you need a specific one.
+          </SectionNote>
           <ModelPicker
             value={model}
             providers={modelProviderIds}
             onChange={(next) => update({ model: next })}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
-          title="Who may use it"
-          description="Grants decide who can see it, ask it questions, start runs and change it."
+        <ReviewSection
+          id="permissions"
+          title="Permissions"
+          summary={permissionSummary}
+          icon={SlidersHorizontal}
+          open={Boolean(open.permissions)}
+          onToggle={() => toggle("permissions")}
         >
+          <SectionNote>
+            Grants decide who can see it, ask it questions, start runs and change it.
+          </SectionNote>
           <GrantsEditor
             grants={draft.permissions ?? []}
             onChange={(next) => update({ permissions: next })}
             teamOptions={teamOptions.filter((option) => option.value !== "")}
             memberOptions={memberOptions}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
-          title="When it must ask"
-          description="Protects anything irreversible. Runs that need a decision pause and wait."
+        <ReviewSection
+          id="approvals"
+          title="Approvals"
+          summary={approvalSummary}
+          icon={ShieldCheck}
+          open={Boolean(open.approvals)}
+          onToggle={() => toggle("approvals")}
         >
+          <SectionNote>
+            Protects anything irreversible. Runs that need a decision pause and wait.
+          </SectionNote>
           <PolicyEditor
             policy={policy}
             toolOptions={toolOptions}
             onChange={(next) => update({ approval_policy: next })}
           />
-        </SectionCard>
+        </ReviewSection>
 
-        <SectionCard
-          title="Refine"
-          description="Describe a change in plain language and the builder applies it to this configuration."
+        <ReviewSection
+          id="refine"
+          title="Change it in your own words"
+          summary={refineText.trim() ? "Ready to apply" : "Ask the builder for a change"}
+          icon={Wand2}
+          open={Boolean(open.refine)}
+          onToggle={() => toggle("refine")}
         >
-          <div className="space-y-3">
-            <Field label="What should change?" htmlFor="refine">
-              <Textarea
-                id="refine"
-                rows={3}
-                value={refineText}
-                onChange={(event) => setRefineText(event.target.value)}
-                placeholder="Run it only on weekdays and ask before creating a Jira ticket."
-              />
-            </Field>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void handleRefine()}
-              loading={refineButtlr.isPending}
-              disabled={refineText.trim().length < 3}
-            >
-              <Sparkles aria-hidden="true" />
-              Apply
-            </Button>
-          </div>
-        </SectionCard>
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => setStep(3)}>
-            Review the summary
-            <ArrowRight aria-hidden="true" />
+          <Field
+            label="What should change?"
+            htmlFor="refine"
+            hint="The builder applies this to the configuration above. Your other edits stay as they are."
+          >
+            <Textarea
+              id="refine"
+              rows={3}
+              value={refineText}
+              onChange={(event) => setRefineText(event.target.value)}
+              placeholder="Run it only on weekdays and ask before creating a Jira ticket."
+            />
+          </Field>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleRefine()}
+            loading={refineButtlr.isPending}
+            disabled={refineText.trim().length < 3}
+          >
+            <Sparkles aria-hidden="true" />
+            Apply
           </Button>
+          {refineButtlr.isError ? <ErrorNote error={refineButtlr.error} /> : null}
+        </ReviewSection>
+
+        {connectedProviders.size === 0 && !appsAreLoading ? (
+          <Alert tone="info" title="No apps connected yet" icon={<Link2 className="size-4" />}>
+            <span>
+              This Buttlr can still be created and described — it simply has no app to work in until
+              you{" "}
+              <Link to="/integrations" className="font-medium underline underline-offset-4">
+                connect one
+              </Link>
+              .
+            </span>
+          </Alert>
+        ) : null}
+
+        <div className="flex justify-between gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={() => setStep(1)}>
             <ArrowLeft aria-hidden="true" />
             Back to the description
           </Button>
+          <Button type="button" variant="outline" onClick={() => setStep(3)}>
+            Summary
+            <ArrowRight aria-hidden="true" />
+          </Button>
         </div>
+
+        {live.execution || testExecution ? renderTestRun() : null}
+
+        {actionBar}
       </div>
     );
   };
+
+  /* ------------------------------------------------------------ test run */
+
+  function renderTestRun() {
+    return (
+      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex min-h-[56px] items-center gap-3 px-4 py-3">
+          <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <h3 className="text-sm font-medium text-foreground">Test run</h3>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              A dry run — nothing outside Buttlr changes
+            </span>
+          </span>
+        </div>
+        <div className="space-y-3 border-t border-border px-4 py-4">
+          {live.execution ? (
+            <ExecutionTimeline execution={live.execution} live={live.isStreaming} />
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+              Preparing the run…
+            </p>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   /* ------------------------------------------------------------ step 3 */
 
   const renderDeploy = () => {
     if (!draft) return null;
     return (
-      <div className="space-y-6">
-        <SectionCard title="Summary" description="Everything this Buttlr will do when deployed.">
+      <div className="space-y-4">
+        <SectionCard
+          title="Summary"
+          description="Everything this Buttlr will do when deployed. Go back to review to change any of it."
+        >
           <dl className="divide-y-0">
             <SummaryRow label="Name">
               {draft.avatar} {draft.name}
@@ -1332,11 +1649,11 @@ export function ButtlrNewPage() {
               )}
             </SummaryRow>
             <SummaryRow label="Tools">
-              {(draft.tools ?? []).length === 0 ? (
+              {selectedTools.length === 0 ? (
                 <span className="text-muted-foreground">None selected</span>
               ) : (
                 <span className="flex flex-wrap gap-1.5">
-                  {(draft.tools ?? []).map((tool) => (
+                  {selectedTools.map((tool) => (
                     <Badge key={tool} tone="outline">
                       {toolLabel(tool)}
                     </Badge>
@@ -1362,11 +1679,11 @@ export function ButtlrNewPage() {
               )}
             </SummaryRow>
             <SummaryRow label="Scope">
-              {Object.keys(draft.scope ?? {}).length === 0 ? (
+              {scopeKeys.length === 0 ? (
                 <span className="text-muted-foreground">Everything the connected accounts allow</span>
               ) : (
                 <span className="break-words">
-                  {Object.keys(draft.scope ?? {}).map((key) => appNames.get(key) ?? humanize(key)).join(", ")}
+                  {scopeKeys.map((key) => appNames.get(key) ?? humanize(key)).join(", ")}
                 </span>
               )}
             </SummaryRow>
@@ -1376,23 +1693,16 @@ export function ButtlrNewPage() {
                 <span className="text-xs text-muted-foreground">{schedule.timezone}</span>
               </span>
             </SummaryRow>
-            <SummaryRow label="Model">
-              {model.provider === "auto"
-                ? "Auto (organization default)"
-                : `${humanize(model.provider)} · ${model.name}`}
-            </SummaryRow>
+            <SummaryRow label="Model">{modelSummary}</SummaryRow>
             <SummaryRow label="Approvals">
               <span className="flex flex-col gap-1">
-                <span>
-                  Default: {MODE_OPTIONS.find((mode) => mode.value === policy.default_mode)?.label}
-                </span>
+                <span>Default: {modeLabel(policy.default_mode)}</span>
                 <span className="text-xs text-muted-foreground">
                   Anything at least {humanize(policy.require_for_risk)} risk is checked first.
                 </span>
                 {policy.rules.map((rule) => (
                   <span key={rule.tool} className="text-xs text-muted-foreground">
-                    {toolLabel(rule.tool)}:{" "}
-                    {MODE_OPTIONS.find((mode) => mode.value === rule.mode)?.label}
+                    {toolLabel(rule.tool)}: {modeLabel(rule.mode)}
                   </span>
                 ))}
               </span>
@@ -1414,82 +1724,22 @@ export function ButtlrNewPage() {
           </dl>
         </SectionCard>
 
-        {missingIntegrations.length > 0 ? (
-          <Alert
-            tone="warning"
-            title={`Connect ${missingAppNames.join(", ")} to deploy`}
-            icon={<Link2 className="size-4" />}
-          >
-            <span>
-              Creating now saves it as a draft. It can run a test, but it will not be deployed until{" "}
-              <Link to="/integrations" className="font-medium underline underline-offset-4">
-                the accounts are connected
-              </Link>
-              .
-            </span>
-          </Alert>
-        ) : null}
+        {live.execution || testExecution ? renderTestRun() : null}
 
-        <SectionCard
-          title="Test run"
-          description="Runs the configuration end to end without changing anything outside Buttlr."
-        >
-          <div className="space-y-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void handleTestRun()}
-              loading={runButtlr.isPending}
-              disabled={busy}
-            >
-              <Sparkles aria-hidden="true" />
-              Test run
-            </Button>
-
-            {live.execution ? (
-              <div className="rounded-md border border-border p-3">
-                <ExecutionTimeline execution={live.execution} live={live.isStreaming} />
-              </div>
-            ) : testExecution ? (
-              <p className="text-sm text-muted-foreground">Preparing the run…</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No test run yet. A dry run saves the configuration as a draft first if it does not
-                exist.
-              </p>
-            )}
-          </div>
-        </SectionCard>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            onClick={() => void handleCreate(true)}
-            loading={busy}
-            disabled={!nameValid || deployButtlr.isPending}
-          >
-            Create &amp; deploy
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handleCreate(false)}
-            loading={busy}
-            disabled={!nameValid || createButtlr.isPending}
-          >
-            Create Buttlr
-          </Button>
+        <div className="flex justify-start pt-1">
           <Button type="button" variant="ghost" onClick={() => setStep(2)}>
             <ArrowLeft aria-hidden="true" />
             Back to the configuration
           </Button>
         </div>
+
+        {actionBar}
       </div>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="New Buttlr"
         description="Describe the job. Review what the builder produced. Deploy when it looks right."

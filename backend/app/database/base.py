@@ -7,6 +7,8 @@ store for development — so domain code never branches on the backend.
 
 from __future__ import annotations
 
+import threading
+import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -48,8 +50,28 @@ class Query:
     offset: int = 0
 
 
+_id_lock = threading.Lock()
+_id_millisecond = 0
+_id_sequence = 0
+
+
 def new_id() -> str:
-    return uuid.uuid4().hex[:20]
+    """A time-sortable, monotonic identifier.
+
+    The clock hands the same millisecond to documents written in a row (Windows resolves
+    about 15 ms), so a timestamp alone cannot order them: messages in one chat, steps in one
+    run and audit rows all collide. A counter inside the millisecond makes the id a usable
+    tiebreaker in every store.
+    """
+    global _id_millisecond, _id_sequence
+    with _id_lock:
+        now_ms = int(time.time() * 1000)
+        if now_ms == _id_millisecond:
+            _id_sequence += 1
+        else:
+            _id_millisecond = now_ms
+            _id_sequence = 0
+        return f"{now_ms:013d}{_id_sequence:04d}{uuid.uuid4().hex[:6]}"
 
 
 def eq(field_name: str, value: Any) -> Condition:

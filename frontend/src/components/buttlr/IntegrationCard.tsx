@@ -64,14 +64,14 @@ export function IntegrationCard({
   };
 
   return (
-    <article className="rounded-lg border border-border bg-card p-4">
+    <article className="flex flex-col rounded-lg border border-border bg-card p-4">
       <header className="flex flex-wrap items-center gap-3">
-        <span aria-hidden="true" className="text-2xl">
+        <span aria-hidden="true" className="text-2xl leading-none">
           {entry?.logo ?? "🔌"}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-semibold">
+            <h3 className="truncate text-sm font-semibold text-foreground">
               {entry?.name ?? integration.display_name}
             </h3>
             <StatusPill status={integration.status} size="sm" />
@@ -81,11 +81,11 @@ export function IntegrationCard({
               <Badge tone="primary">Shared with the workspace</Badge>
             )}
           </div>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-xs leading-4 text-muted-foreground">
             {integration.account ?? "No account connected"}
           </p>
           {oauthClient ? (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs leading-4 text-muted-foreground">
               {oauthClient.configured
                 ? oauthClient.source === "workspace"
                   ? `Sign-in uses this workspace's own ${providerLabel(integration.provider)} app`
@@ -121,24 +121,30 @@ export function IntegrationCard({
       ) : null}
 
       {integration.resources.length > 0 ? (
-        <fieldset className="mt-4">
+        <fieldset className="mt-5">
           <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Connected resources
           </legend>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-2 space-y-1">
             {integration.resources.map((resource) => (
-              <li key={resource.id} className="flex items-center gap-2">
+              <li
+                key={resource.id}
+                className="flex min-h-11 items-center gap-3 rounded-md px-1 py-1 hover:bg-muted/40 sm:min-h-0 sm:px-0"
+              >
                 <input
                   id={`resource-${integration.id}-${resource.id}`}
                   type="checkbox"
-                  className="size-4 rounded border-border accent-primary"
+                  className="size-4 shrink-0 cursor-pointer rounded border-border accent-primary disabled:cursor-not-allowed"
                   checked={selected.includes(resource.id)}
                   disabled={readOnly || !connected || busy}
                   onChange={() => toggle(resource.id)}
                 />
-                <Label htmlFor={`resource-${integration.id}-${resource.id}`} className="min-w-0 flex-1">
+                <Label
+                  htmlFor={`resource-${integration.id}-${resource.id}`}
+                  className="min-w-0 flex-1 cursor-pointer"
+                >
                   <span className="block truncate text-sm">{resource.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
+                  <span className="block truncate text-xs leading-4 text-muted-foreground">
                     {resource.kind}
                   </span>
                 </Label>
@@ -164,13 +170,13 @@ export function IntegrationCard({
               </Button>
             )}
             {readOnly ? (
-              <span className="text-xs text-muted-foreground">{MANAGE_HINT}</span>
+              <span className="text-xs leading-4 text-muted-foreground">{MANAGE_HINT}</span>
             ) : null}
           </div>
         </fieldset>
       ) : null}
 
-      <footer className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <footer className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {readOnly ? (
           guarded(
             "Refresh",
@@ -224,7 +230,7 @@ export function IntegrationCard({
       />
 
       {!connected ? (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs leading-4 text-muted-foreground">
           Go to <Link to="/integrations" className="text-primary hover:underline">Integrations</Link>{" "}
           to reconnect this account.
         </p>

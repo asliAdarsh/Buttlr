@@ -40,6 +40,10 @@ const MORE: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+/**
+ * Bottom navigation. The active item gets a rule above the icon as well as a
+ * colour change, so the current page is never signalled by colour alone.
+ */
 function Slot({
   item,
   active,
@@ -54,26 +58,27 @@ function Slot({
       to={item.to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium transition-colors",
-        active ? "text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+        "relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs font-medium transition-colors",
+        active ? "text-foreground" : "text-muted-foreground",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-8 items-center justify-center rounded-md",
-          active && "bg-accent",
+          "absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary transition-opacity",
+          active ? "opacity-100" : "opacity-0",
         )}
-      >
-        <item.icon className="size-4" />
+      />
+      <span className="relative flex size-6 items-center justify-center">
+        <item.icon className={cn("size-5", active && "text-primary")} />
+        {badge ? (
+          <span className="absolute -right-2 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold tabular-nums text-primary-foreground">
+            {badge}
+          </span>
+        ) : null}
+        <span className="sr-only">{badge ? `${badge} approvals waiting` : ""}</span>
       </span>
       <span className="truncate leading-tight">{item.label}</span>
-      {badge ? (
-        <span className="absolute right-1/4 top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-          {badge}
-          <span className="sr-only"> approvals waiting</span>
-        </span>
-      ) : null}
     </Link>
   );
 }
@@ -98,11 +103,11 @@ export function MobileNav() {
         to={item.to}
         onClick={() => setOpen(false)}
         className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-muted",
-          isActive(item, pathname) && "bg-accent text-accent-foreground",
+          "flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted",
+          isActive(item, pathname) && "bg-muted font-medium text-foreground",
         )}
       >
-        <item.icon aria-hidden="true" className="size-4 shrink-0" />
+        <item.icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         {item.label}
       </Link>
     </li>
@@ -111,9 +116,9 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Primary"
-      className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background lg:hidden"
     >
-      <ul className="mx-auto flex max-w-lg items-stretch gap-0.5 px-2 py-1.5">
+      <ul className="mx-auto flex max-w-lg items-stretch gap-1 px-2 pb-[env(safe-area-inset-bottom)] pt-1">
         {PRIMARY.map((item) => (
           <li key={item.to} className="flex flex-1">
             <Slot
@@ -129,37 +134,37 @@ export function MobileNav() {
               <button
                 type="button"
                 aria-label="More sections"
+                aria-expanded={open}
                 className={cn(
-                  "flex w-full flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium transition-colors",
-                  moreActive ? "text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+                  "relative flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs font-medium transition-colors",
+                  moreActive ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-md",
-                    moreActive && "bg-accent",
+                    "absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary transition-opacity",
+                    moreActive ? "opacity-100" : "opacity-0",
                   )}
-                >
-                  <MoreHorizontal className="size-4" />
-                </span>
+                />
+                <MoreHorizontal className={cn("size-5", moreActive && "text-primary")} />
                 <span className="leading-tight">More</span>
               </button>
             </DialogTrigger>
-            <DialogContent className="bottom-0 left-0 right-0 top-auto max-h-[85vh] translate-x-0 translate-y-0 rounded-b-none rounded-t-xl border-b-0 sm:left-auto sm:right-4 sm:top-auto sm:h-auto sm:max-w-sm sm:translate-y-0 sm:rounded-lg sm:border-b">
+            <DialogContent className="max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <DialogHeader>
                 <DialogTitle>More</DialogTitle>
                 <DialogDescription>Everything else in this workspace.</DialogDescription>
               </DialogHeader>
-              <ul className="space-y-0.5">
+              <ul className="mt-4 space-y-1">
                 {MORE.map(sheetLink)}
                 <li>
                   <button
                     type="button"
-                    onClick={closeThen(() => navigate("/settings?tab=profile"))}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm transition-colors hover:bg-muted"
+                    onClick={closeThen(() => navigate("/settings?tab=account"))}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
                   >
-                    <User aria-hidden="true" className="size-4 shrink-0" />
+                    <User aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                     Profile
                   </button>
                 </li>
@@ -167,7 +172,7 @@ export function MobileNav() {
                   <button
                     type="button"
                     onClick={closeThen(logout)}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm text-destructive transition-colors hover:bg-muted"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-muted"
                   >
                     <LogOut aria-hidden="true" className="size-4 shrink-0" />
                     Sign out

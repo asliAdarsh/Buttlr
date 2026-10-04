@@ -442,6 +442,8 @@ export interface ExecutionSummary {
   goal: string;
   output?: string | null;
   error?: string | null;
+  provider?: string | null;
+  model?: string | null;
   step_count: number;
   usage: Usage;
   created_at: string;

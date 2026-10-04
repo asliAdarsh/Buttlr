@@ -50,6 +50,7 @@ export interface StatusPillProps {
   size?: "sm" | "md";
 }
 
+/** Always an icon *and* a word: the tone reinforces the meaning, it never carries it. */
 export function StatusPill({ status, size = "md" }: StatusPillProps) {
   const tone: Tone = toneFor(status);
   const Icon = ICONS[status] ?? CircleDot;
@@ -57,7 +58,7 @@ export function StatusPill({ status, size = "md" }: StatusPillProps) {
   return (
     <Badge
       tone={tone}
-      className={size === "sm" ? "px-1.5 py-0 text-[11px]" : undefined}
+      className={size === "sm" ? "px-1.5 py-0 text-[11px] leading-4" : undefined}
     >
       <Icon className={status === "running" ? "animate-spin" : undefined} aria-hidden="true" />
       {textFor(status)}

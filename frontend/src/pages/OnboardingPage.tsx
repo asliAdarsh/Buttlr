@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ListChecks, Rocket, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, ListChecks, Rocket, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,42 +96,39 @@ export function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-10 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl space-y-10">
+      <div className="mx-auto w-full max-w-5xl space-y-8">
         <header className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-            >
-              <Sparkles className="h-4 w-4" />
+          <p className="flex items-center gap-2">
+            <span aria-hidden className="text-2xl leading-none">
+              🫙
             </span>
-            <span className="text-lg font-semibold text-foreground">Buttlr</span>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <span className="text-base font-semibold leading-6 text-foreground">Buttlr</span>
+          </p>
+          <h1 className="text-xl font-semibold leading-7 tracking-tight text-foreground sm:text-2xl sm:leading-8">
             Set up your AI workforce
           </h1>
-          <p className="max-w-2xl text-muted-foreground">
+          <p className="max-w-2xl text-sm leading-5 text-muted-foreground">
             An organization holds your Buttlrs, the teams that supervise them and the people who
             approve their work. Everything else follows from that.
           </p>
         </header>
 
         <section aria-labelledby="how-it-works" className="space-y-4">
-          <h2 id="how-it-works" className="text-sm font-semibold text-foreground">
+          <h2 id="how-it-works" className="text-base font-semibold leading-6 text-foreground">
             How Buttlr works
           </h2>
           <ol className="grid gap-4 sm:grid-cols-3">
             {STEPS.map((step, index) => (
               <li key={step.title}>
                 <Card className="h-full">
-                  <CardHeader className="space-y-2">
+                  <CardHeader className="gap-3">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <step.icon className="h-4 w-4" aria-hidden />
-                      <span className="text-xs font-medium uppercase tracking-wide">
+                      <step.icon className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="text-xs font-medium uppercase leading-4 tracking-wide text-muted-foreground">
                         Step {index + 1}
                       </span>
                     </div>
-                    <CardTitle className="text-base">{step.title}</CardTitle>
+                    <CardTitle>{step.title}</CardTitle>
                     <CardDescription>{step.body}</CardDescription>
                   </CardHeader>
                 </Card>
@@ -142,15 +139,15 @@ export function OnboardingPage() {
 
         {organizations.length > 0 && (
           <section aria-labelledby="existing-orgs" className="space-y-3">
-            <h2 id="existing-orgs" className="text-sm font-semibold text-foreground">
+            <h2 id="existing-orgs" className="text-base font-semibold leading-6 text-foreground">
               Your organizations
             </h2>
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {organizations.map((organization) => (
                 <li key={organization.id}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => {
                       setActiveOrganization(organization.id);
                       navigate("/", { replace: true });
@@ -160,14 +157,14 @@ export function OnboardingPage() {
                       {organization.logo_emoji}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
+                      <span className="block truncate text-sm font-medium leading-5 text-foreground">
                         {organization.name}
                       </span>
-                      {organization.description && (
-                        <span className="block truncate text-xs text-muted-foreground">
+                      {organization.description ? (
+                        <span className="block truncate text-xs leading-4 text-muted-foreground">
                           {organization.description}
                         </span>
-                      )}
+                      ) : null}
                     </span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   </button>
@@ -178,7 +175,7 @@ export function OnboardingPage() {
         )}
 
         <div className="grid gap-6 lg:grid-cols-5">
-          <Card className="lg:col-span-3">
+          <Card className="h-full lg:col-span-3">
             <CardHeader>
               <CardTitle>Create an organization</CardTitle>
               <CardDescription>
@@ -215,7 +212,7 @@ export function OnboardingPage() {
                 </Field>
 
                 <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium text-foreground">Icon</legend>
+                  <legend className="text-sm font-medium leading-5 text-foreground">Icon</legend>
                   <div className="flex flex-wrap gap-2">
                     {LOGO_EMOJIS.map((option) => (
                       <button
@@ -226,8 +223,8 @@ export function OnboardingPage() {
                         onClick={() => setEmoji(option)}
                         className={
                           option === emoji
-                            ? "flex h-10 w-10 items-center justify-center rounded-md border-2 border-primary bg-accent text-lg"
-                            : "flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-lg transition-colors hover:bg-accent"
+                            ? "flex min-h-11 min-w-11 items-center justify-center rounded-md border border-primary bg-muted text-lg"
+                            : "flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-background text-lg transition-colors hover:bg-muted"
                         }
                       >
                         {option}
@@ -236,15 +233,20 @@ export function OnboardingPage() {
                   </div>
                 </fieldset>
 
-                <Button type="submit" loading={creating} disabled={seeding} className="w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  loading={creating}
+                  disabled={seeding}
+                  className="w-full sm:w-auto"
+                >
                   Create organization
-                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+                  <ArrowRight className="h-4 w-4" aria-hidden />
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card className="h-full lg:col-span-2">
             <CardHeader>
               <CardTitle>Load the demo workspace</CardTitle>
               <CardDescription>
@@ -254,7 +256,7 @@ export function OnboardingPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {meta.data?.demo_seed_enabled === false ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm leading-5 text-muted-foreground">
                   Demo data is turned off on this deployment. Create an organization to continue.
                 </p>
               ) : (
@@ -265,7 +267,7 @@ export function OnboardingPage() {
                   onClick={() => void handleDemo()}
                   disabled={creating || seeding}
                 >
-                  {seeding && <Spinner className="mr-2 h-4 w-4" />}
+                  {seeding && <Spinner className="h-4 w-4" />}
                   Load the demo workspace
                 </Button>
               )}

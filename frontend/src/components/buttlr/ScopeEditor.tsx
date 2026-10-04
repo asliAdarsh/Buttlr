@@ -83,7 +83,7 @@ export function ScopeEditor({
 
   if (loading && groups.length === 0) {
     return (
-      <p className="rounded-md border border-border border-dashed p-6 text-center text-sm text-muted-foreground">
+      <p className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm leading-5 text-muted-foreground">
         Checking which apps are connected…
       </p>
     );
@@ -111,7 +111,7 @@ export function ScopeEditor({
   const extraKeys = Object.keys(scope).filter((key) => !covered.has(key));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {groups.map((group) => {
         const selected = readResourceIds(scope[group.provider]);
         const noun = SCOPE_NOUN[group.provider];
@@ -122,25 +122,28 @@ export function ScopeEditor({
               <span className="truncate">{group.name}</span>
             </legend>
             {group.accounts.length > 0 && SCOPE_HINT[group.provider] ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs leading-4 text-muted-foreground">
                 {group.accounts.join(" · ")} · {SCOPE_HINT[group.provider]}
               </p>
             ) : null}
 
             {group.resources.length === 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs leading-4 text-muted-foreground">
                 {noun
                   ? `This account has not reported any ${noun} yet.`
                   : "Nothing to narrow down: the connected account is the whole of its reach."}
               </p>
             ) : (
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-2 space-y-1">
                 {group.resources.map((resource) => (
-                  <li key={`${group.provider}-${resource.id}`} className="flex items-center gap-2">
+                  <li
+                    key={`${group.provider}-${resource.id}`}
+                    className="flex min-h-11 items-center gap-3 rounded-md px-1 py-1 hover:bg-muted/40 sm:min-h-0 sm:px-0"
+                  >
                     <input
                       id={`scope-${group.provider}-${resource.id}`}
                       type="checkbox"
-                      className="size-4 shrink-0 rounded border-border accent-primary"
+                      className="size-4 shrink-0 cursor-pointer rounded border-border accent-primary"
                       checked={selected.includes(resource.id)}
                       onChange={() =>
                         write(
@@ -153,10 +156,10 @@ export function ScopeEditor({
                     />
                     <Label
                       htmlFor={`scope-${group.provider}-${resource.id}`}
-                      className="min-w-0 flex-1"
+                      className="min-w-0 flex-1 cursor-pointer"
                     >
                       <span className="block truncate text-sm">{resource.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-xs leading-4 text-muted-foreground">
                         {resource.kind}
                       </span>
                     </Label>
@@ -169,9 +172,9 @@ export function ScopeEditor({
       })}
 
       {extraKeys.length > 0 ? (
-        <div className="rounded-md border border-border bg-muted/40 p-3 text-xs">
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
           <p className="font-medium text-foreground">Other scope keys</p>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 leading-4 text-muted-foreground">
             These keys are stored but not editable here. They are preserved exactly as written:{" "}
             {extraKeys.join(", ")}.
           </p>
