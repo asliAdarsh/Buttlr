@@ -579,9 +579,16 @@ function OAuthAppForm({
   );
 }
 
-function OAuthAppsSection({ organizationId }: { organizationId: string }) {
+function OAuthAppsSection({
+  organizationId,
+  open,
+  onOpenChange,
+}: {
+  organizationId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const clients = useOauthClients(organizationId);
-  const [open, setOpen] = useState(false);
 
   return (
     <SectionCard
@@ -592,7 +599,7 @@ function OAuthAppsSection({ organizationId }: { organizationId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => onOpenChange(!open)}
           aria-expanded={open}
           aria-controls="oauth-apps-body"
         >
@@ -604,7 +611,29 @@ function OAuthAppsSection({ organizationId }: { organizationId: string }) {
         </Button>
       }
     >
-      <div id="oauth-apps-body" hidden={!open}>
+      <div id="oauth-apps-body" hidden={!open} className="space-y-4">
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">How to get these two values</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>
+              <span className="font-medium text-foreground">Google</span>: Google Cloud Console →
+              APIs &amp; Services → Credentials → <em>Create credentials</em> → <em>OAuth client ID</em> →
+              Web application. Add the redirect URI shown below to it, exactly.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">GitHub</span>: Settings → Developer
+              settings → OAuth Apps → <em>New OAuth App</em>, and paste the redirect URI shown below
+              as the callback URL.
+            </li>
+            <li>Paste the client ID and secret here, then press Connect on the app above.</li>
+          </ol>
+          <p className="mt-2">
+            Already on Firebase? Its Google sign-in provider <em>is</em> a Google OAuth client:
+            Firebase console → Authentication → Sign-in method → Google → Web SDK configuration
+            gives you a client ID and secret you can use here (add the redirect URI to that client
+            in Google Cloud).
+          </p>
+        </div>
         {clients.isLoading ? (
           <div className="space-y-3">
             {OAUTH_PROVIDERS.map((provider) => (
@@ -635,6 +664,7 @@ export function IntegrationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const connectedParam = searchParams.get("connected");
   const orgParam = searchParams.get("org");
+  const oauthErrorParam = searchParams.get("oauth_error");
   const catalogue = useIntegrationCatalogue(organizationId);
   const integrations = useIntegrations(organizationId);
   const members = useMembers(organizationId);
@@ -647,7 +677,23 @@ export function IntegrationsPage() {
   const [googleScope, setGoogleScope] = useState<IntegrationScope>("personal");
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
+  const [oauthOpen, setOauthOpen] = useState(false);
   const handledParam = useRef<string | null>(null);
+
+  // A provider can bounce the user back with a reason (a wrong client secret, an unregistered
+  // redirect URI). Show it where they are, and keep it until they dismiss it.
+  const clearOauthError = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("oauth_error");
+    setSearchParams(params, { replace: true });
+  };
+
+  const openOauthApps = () => {
+    setOauthOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("oauth-apps-body")?.scrollIntoView({ block: "center" });
+    });
+  };
 
   // The OAuth callback lands back here with ?connected=<provider>&org=<organizationId>. Follow the
   // organization it connected for, then clear both parameters.
@@ -783,6 +829,22 @@ export function IntegrationsPage() {
         description="Accounts Buttlrs act on your behalf. Connect your own; owners and admins can also connect one shared account for the workspace."
       />
 
+      {oauthErrorParam ? (
+        <Alert tone="destructive" title="That connection did not finish">
+          <div className="space-y-3">
+            <p>{oauthErrorParam}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={openOauthApps}>
+                Set up the OAuth app
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={clearOauthError}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </Alert>
+      ) : null}
+
       {integrations.isError ? (
         <ErrorState error={integrations.error} onRetry={() => void integrations.refetch()} />
       ) : catalogue.isError ? (
@@ -893,7 +955,19 @@ export function IntegrationsPage() {
                           />
                           {googleError ? (
                             <Alert tone="warning" title="Google sign-in could not start">
-                              {googleError}
+                              <div className="space-y-3">
+                                <p>{googleError}</p>
+                                {isAdmin ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={openOauthApps}
+                                  >
+                                    Set up the OAuth app
+                                  </Button>
+                                ) : null}
+                              </div>
                             </Alert>
                           ) : null}
                           <div className="mt-auto">
@@ -941,7 +1015,11 @@ export function IntegrationsPage() {
           </SectionCard>
 
           {isAdmin && organizationId ? (
-            <OAuthAppsSection organizationId={organizationId} />
+            <OAuthAppsSection
+              organizationId={organizationId}
+              open={oauthOpen}
+              onOpenChange={setOauthOpen}
+            />
           ) : null}
         </>
       )}
